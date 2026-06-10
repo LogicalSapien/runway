@@ -11,7 +11,7 @@ type QueueItem struct {
 	RepoID       int64   `json:"repo_id"`
 	WorkflowFile string  `json:"workflow_file"`
 	Branch       string  `json:"branch"`
-	Event        string  `json:"event"` // workflow_dispatch | push
+	Event        string  `json:"event"`            // workflow_dispatch | push
 	Inputs       *string `json:"inputs,omitempty"` // JSON blob or nil
 	Status       string  `json:"status"`           // queued/running/done/cancelled
 	Priority     int     `json:"priority"`         // higher = dequeued sooner

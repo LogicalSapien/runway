@@ -64,7 +64,7 @@ type ListRunsFilter struct {
 	Status   string // filter by status
 	Since    int64  // only runs created at/after this unix timestamp
 	Limit    int
-	Offset   int    // 0 → default of 50
+	Offset   int // 0 → default of 50
 }
 
 // ListRuns returns runs in reverse chronological order, applying any filters
