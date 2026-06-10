@@ -66,6 +66,10 @@ func (s *Server) routes() {
 		s.ghGetRunLogs,
 	)
 
+	// Contents — basic GitHub-compatible read of the local checkout.
+	s.mux.HandleFunc("GET /repos/{owner}/{repo}/contents", s.getContents)
+	s.mux.HandleFunc("GET /repos/{owner}/{repo}/contents/{path...}", s.getContents)
+
 	// Secrets / variables / environments (GitHub-compatible shapes).
 	// Secret values are write-only; reads return metadata. Writes are admin.
 	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/secrets/public-key", s.getPublicKey)
@@ -111,6 +115,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET    /api/repos", s.listRepos)
 	s.mux.HandleFunc("GET    /api/repos/{id}", s.getRepo)
 	s.mux.HandleFunc("GET    /api/repos/{id}/workflows", s.listRepoWorkflows)
+	s.mux.HandleFunc("GET    /api/repos/{id}/gitstatus", s.getGitStatus)
 	s.mux.HandleFunc("POST   /api/repos", middleware.RequireAdmin(s.db, s.createRepo))
 	s.mux.HandleFunc("DELETE /api/repos/{id}", middleware.RequireAdmin(s.db, s.deleteRepo))
 	s.mux.HandleFunc("POST   /api/repos/{id}/sync", middleware.RequireAdmin(s.db, s.syncRepo))

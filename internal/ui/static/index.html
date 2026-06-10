@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Runway</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=9">
+  <link rel="stylesheet" href="/style.css?v=10">
 </head>
 <body>
   <nav>
@@ -74,6 +74,7 @@
             </div>
             <ul id="steps-list" class="steps-list"></ul>
             <pre id="log-output" class="log-box hidden"></pre>
+            <button id="log-top-btn" class="log-top-btn hidden" title="Scroll to top">&#x2191; Top</button>
           </div>
         </div>
       </div>
@@ -117,9 +118,29 @@
         <div class="toolbar">
           <button id="repos-back">&#x2190; Back</button>
           <h2 id="repos-detail-title"></h2>
+          <span id="repo-sync" class="sync-badge"></span>
           <button id="delete-repo-btn" class="btn-danger">Delete Repo</button>
         </div>
         <div class="repo-detail-meta" id="repo-detail-meta"></div>
+
+        <div class="repo-tabs">
+          <button id="repo-tab-overview" class="repo-tab active">Overview</button>
+          <button id="repo-tab-files" class="repo-tab">Files</button>
+        </div>
+
+        <!-- ── Files pane (basic checkout browser) ─────────────────────── -->
+        <div id="repo-files" class="hidden">
+          <div class="toolbar" style="margin-top:14px">
+            <span id="files-crumb" class="files-crumb"></span>
+          </div>
+          <table id="files-table">
+            <thead><tr><th style="width:28px"></th><th>Name</th><th>Size</th></tr></thead>
+            <tbody id="files-body"></tbody>
+          </table>
+          <pre id="file-view" class="file-view hidden"></pre>
+        </div>
+
+        <div id="repo-overview">
         <div class="toolbar" style="margin-top:20px">
           <h3>Workflows</h3>
           <button id="sync-repo-btn">&#x21BB; Sync Workflows</button>
@@ -176,6 +197,7 @@
           </thead>
           <tbody id="repo-runs-body"></tbody>
         </table>
+        </div><!-- /repo-overview -->
       </div>
     </section>
 
@@ -350,6 +372,6 @@
     <button class="bnav-btn" id="bnav-more"><span class="bnav-icon">&#x22EF;</span><span class="bnav-label">More</span></button>
   </nav>
 
-  <script src="/app.js?v=9"></script>
+  <script src="/app.js?v=10"></script>
 </body>
 </html>

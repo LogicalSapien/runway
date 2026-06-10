@@ -268,16 +268,16 @@ function workflowNameFromFile(file) {
   return file.replace(/\.ya?ml$/i, '');
 }
 
-async function openRunById(id) {
+async function openRunById(id, sel) {
   const r = await apiFetch(`/api/runs/${id}`);
   if (!r.ok) { loadRuns(); return; }
-  openRun(await r.json());
+  openRun(await r.json(), sel);
 }
 
-async function openRepoByOwnerName(owner, name) {
+async function openRepoByOwnerName(owner, name, view) {
   const repos = await getRepos();
   const repo = repos.find(x => x.owner === owner && x.name === name);
-  if (repo) { openRepo(repo); } else { showReposList(); loadRepos(); }
+  if (repo) { openRepo(repo, view); } else { showReposList(); loadRepos(); }
 }
 
 async function render(path) {
@@ -298,13 +298,34 @@ async function render(path) {
     if (seg.length === 2 || (seg.length === 3 && c === 'actions')) {
       switchToTab('repos'); openRepoByOwnerName(owner, repo); return;
     }
-    if (c === 'actions' && d === 'runs' && e) { switchToTab('runs'); openRunById(e); return; }
+    // /{owner}/{repo}/tree|blob/{branch}/{path...} — file browser deep links
+    if ((c === 'tree' || c === 'blob') && seg.length >= 4) {
+      switchToTab('repos');
+      openRepoByOwnerName(owner, repo, { pane: 'files', mode: c, path: seg.slice(4).join('/') });
+      return;
+    }
+    // /{owner}/{repo}/actions/runs/{id}[/job/{jobId}] — selected job survives refresh
+    if (c === 'actions' && d === 'runs' && e) {
+      const sel = seg[5] === 'job' && seg[6]
+        ? { jobID: parseInt(seg[6], 10), step: stepFromQuery() }
+        : { step: stepFromQuery() };
+      switchToTab('runs'); openRunById(e, sel); return;
+    }
     if (c === 'actions' && d === 'workflows' && e) {
       switchToTab('runs'); loadRunsFiltered(repo, workflowNameFromFile(e)); return;
     }
   }
+  // /runs/{id}/job/{jobId} (owner-less fallback)
+  if (owner === 'runs' && seg.length >= 4 && seg[2] === 'job') {
+    switchToTab('runs'); openRunById(repo, { jobID: parseInt(seg[3], 10), step: stepFromQuery() }); return;
+  }
 
   switchToTab('runs'); loadRuns();
+}
+
+function stepFromQuery() {
+  const v = new URLSearchParams(window.location.search).get('step');
+  return v === null ? undefined : parseInt(v, 10);
 }
 
 window.addEventListener('popstate', () => render(window.location.pathname));
@@ -449,7 +470,11 @@ async function selectJob(job, li) {
 // We cache the current run's repo owner+name for GH-compat calls
 let _currentRunRepo = null; // { owner, name }
 
-async function openRun(run) {  // redefine to capture repo info
+// _pendingSel carries {jobID, step} from the URL so refresh restores position.
+let _pendingSel = null;
+
+async function openRun(run, sel) {
+  _pendingSel = sel || null;
   showRunDetail();
   document.getElementById('detail-title').textContent =
     `#${run.id} — ${run.workflow}`;
@@ -494,13 +519,34 @@ async function openRun(run) {  // redefine to capture repo info
     li.innerHTML =
       `${statusIcon(job.status)}<span class="job-name">${escText(job.name)}</span>` +
       `<span class="job-dur">${fmtDuration(job.started_at, job.finished_at)}</span>`;
-    li.addEventListener('click', () => selectJob(job, li));
+    li.addEventListener('click', () => { pushJobURL(run, job); selectJob(job, li); });
     jobsList.appendChild(li);
   }
 
-  // Auto-select first job
-  const firstLi = jobsList.querySelector('.job-item');
-  if (firstLi) selectJob(jobs[0], firstLi);
+  // Select the URL's job if present, else the first one.
+  let idx = 0;
+  if (_pendingSel?.jobID) {
+    const found = jobs.findIndex(j => j.id === _pendingSel.jobID);
+    if (found >= 0) idx = found;
+  }
+  const lis = jobsList.querySelectorAll('.job-item');
+  if (lis[idx]) selectJob(jobs[idx], lis[idx]);
+}
+
+// pushJobURL records the selected job in the path (GitHub shape:
+// .../actions/runs/{id}/job/{job_id}); any ?step= is reset.
+function pushJobURL(run, job) {
+  const base = window.location.pathname.replace(/\/job\/\d+$/, '');
+  const root = base.includes('/runs/') ? base : runURL(run);
+  history.pushState({}, '', `${root}/job/${job.id}`);
+}
+
+// setStepQuery records the selected step index as ?step=N without adding
+// history entries for every click.
+function setStepQuery(i) {
+  const u = new URL(window.location.href);
+  u.searchParams.set('step', i);
+  history.replaceState({}, '', u);
 }
 
 async function renderStepsForJob(job) {
@@ -545,13 +591,18 @@ async function renderStepsForJob(job) {
     li.innerHTML =
       `${statusIcon(rawStatus)}` +
       `<span class="step-name">${escText(step.name)}</span>`;
-    li.addEventListener('click', () => selectStep(step, rawStatus, job, li));
+    li.addEventListener('click', () => { setStepQuery(i); selectStep(step, rawStatus, job, li); });
     stepsList.appendChild(li);
   }
 
-  // Auto-select first step
-  const firstStep = stepsList.querySelector('.step-item');
-  if (firstStep) selectStep(steps[0], ghStatusToRunway(steps[0].status, steps[0].conclusion), job, firstStep);
+  // Select the URL's step if present (and consume it), else the first one.
+  let idx = 0;
+  if (Number.isInteger(_pendingSel?.step) && _pendingSel.step >= 0 && _pendingSel.step < steps.length) {
+    idx = _pendingSel.step;
+  }
+  _pendingSel = null;
+  const items = stepsList.querySelectorAll('.step-item');
+  if (items[idx]) selectStep(steps[idx], ghStatusToRunway(steps[idx].status, steps[idx].conclusion), job, items[idx]);
 }
 
 function ghStatusToRunway(status, conclusion) {
@@ -625,6 +676,17 @@ async function loadLogsForJob(job) {
 function closeLogStream() {
   if (logStream) { logStream.close(); logStream = null; }
 }
+
+// Scroll-to-top button for long logs: appears once the log box has scrolled.
+(function wireLogTopButton() {
+  const logBox = document.getElementById('log-output');
+  const btn = document.getElementById('log-top-btn');
+  if (!logBox || !btn) return;
+  logBox.addEventListener('scroll', () => {
+    btn.classList.toggle('hidden', logBox.scrollTop < 300);
+  });
+  btn.addEventListener('click', () => logBox.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
 
 // ── Helpers shared with the outer and inner openRun ───────────────────────────
 function makeBadgeHTML(status) {
@@ -758,13 +820,21 @@ async function loadRepos() {
   }
 }
 
-async function openRepo(repo) {
+async function openRepo(repo, view) {
   _currentRepo = repo;
   _currentScope = '';
-  // Keep the URL on this repo (don't clobber a deeper /actions/... path).
+  // Keep the URL on this repo (don't clobber a deeper /tree|blob/... path).
   const base = `/${repo.owner}/${repo.name}`;
   if (!window.location.pathname.startsWith(base)) pushURL(base);
   loadScopes(repo);
+  loadGitStatus(repo);
+  if (view?.pane === 'files') {
+    showRepoPane('files');
+    if (view.mode === 'blob') loadBlob(repo, view.path || '');
+    else loadFiles(repo, view.path || '');
+  } else {
+    showRepoPane('overview');
+  }
   document.getElementById('repos-list-view').classList.add('hidden');
   document.getElementById('repos-detail-view').classList.remove('hidden');
   document.getElementById('repos-detail-title').textContent = `${repo.owner}/${repo.name}`;
@@ -828,6 +898,166 @@ async function loadRepoRuns(repo) {
   const resp = await apiFetch(`/api/runs?${params}`);
   const runs = resp.ok ? await resp.json() : [];
   renderRunsTable(runs, document.getElementById('repo-runs-body'));
+}
+
+// ── Repo detail panes (Overview | Files) + sync status + file browser ─────────
+
+function showRepoPane(pane) {
+  document.getElementById('repo-tab-overview').classList.toggle('active', pane === 'overview');
+  document.getElementById('repo-tab-files').classList.toggle('active', pane === 'files');
+  document.getElementById('repo-overview').classList.toggle('hidden', pane !== 'overview');
+  document.getElementById('repo-files').classList.toggle('hidden', pane !== 'files');
+}
+
+document.getElementById('repo-tab-overview').addEventListener('click', () => {
+  if (!_currentRepo) return;
+  pushURL(`/${_currentRepo.owner}/${_currentRepo.name}`);
+  showRepoPane('overview');
+});
+
+document.getElementById('repo-tab-files').addEventListener('click', () => {
+  if (!_currentRepo) return;
+  pushURL(`/${_currentRepo.owner}/${_currentRepo.name}/tree/${_currentRepo.default_branch}`);
+  showRepoPane('files');
+  loadFiles(_currentRepo, '');
+});
+
+async function loadGitStatus(repo) {
+  const el = document.getElementById('repo-sync');
+  el.className = 'sync-badge sync-unknown';
+  el.textContent = 'checking origin…';
+  const r = await apiFetch(`/api/repos/${repo.id}/gitstatus`);
+  if (!r.ok) { el.textContent = ''; return; }
+  const st = await r.json();
+  if (!st.cloned) {
+    el.textContent = 'not cloned yet';
+    return;
+  }
+  if (st.synced) {
+    el.className = 'sync-badge sync-ok';
+    el.textContent = `✓ in sync with origin/${st.branch} (${(st.local_sha || '').slice(0, 7)})`;
+  } else if (st.behind > 0) {
+    el.className = 'sync-badge sync-behind';
+    el.textContent = `↓ ${st.behind} behind origin/${st.branch} — pull needed (next run pulls automatically)`;
+  } else if (st.ahead > 0) {
+    el.className = 'sync-badge sync-behind';
+    el.textContent = `↑ ${st.ahead} ahead of origin/${st.branch} (local changes?)`;
+  } else {
+    el.textContent = `origin/${st.branch} unreachable`;
+  }
+}
+
+function renderCrumb(repo, path, mode) {
+  const crumb = document.getElementById('files-crumb');
+  crumb.innerHTML = '';
+  const mk = (label, target) => {
+    const a = document.createElement('a');
+    a.textContent = label;
+    a.addEventListener('click', () => {
+      pushURL(`/${repo.owner}/${repo.name}/tree/${repo.default_branch}${target ? '/' + target : ''}`);
+      loadFiles(repo, target);
+    });
+    return a;
+  };
+  crumb.appendChild(mk(repo.name, ''));
+  const parts = path ? path.split('/') : [];
+  let acc = '';
+  for (let i = 0; i < parts.length; i++) {
+    const sep = document.createElement('span');
+    sep.className = 'crumb-sep';
+    sep.textContent = '/';
+    crumb.appendChild(sep);
+    acc = acc ? acc + '/' + parts[i] : parts[i];
+    if (i === parts.length - 1 && mode === 'blob') {
+      const span = document.createElement('span');
+      span.textContent = parts[i];
+      crumb.appendChild(span);
+    } else {
+      crumb.appendChild(mk(parts[i], acc));
+    }
+  }
+}
+
+function fmtSize(n) {
+  if (!n) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function loadFiles(repo, path) {
+  document.getElementById('file-view').classList.add('hidden');
+  document.getElementById('files-table').classList.remove('hidden');
+  renderCrumb(repo, path, 'tree');
+  const tbody = document.getElementById('files-body');
+  tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted)">Loading…</td></tr>';
+  const r = await apiFetch(`/repos/${repo.owner}/${repo.name}/contents/${path}`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.style.color = 'var(--muted)';
+    td.textContent = err.error || 'Could not load contents.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  const entries = await r.json();
+  tbody.innerHTML = '';
+  for (const e of entries) {
+    const tr = document.createElement('tr');
+    const icon = document.createElement('td');
+    icon.className = 'file-icon';
+    icon.textContent = e.type === 'dir' ? '📁' : '📄';
+    tr.appendChild(icon);
+    tr.appendChild(makeTd(e.name));
+    tr.appendChild(makeTd(e.type === 'dir' ? '' : fmtSize(e.size)));
+    tr.addEventListener('click', () => {
+      const kind = e.type === 'dir' ? 'tree' : 'blob';
+      pushURL(`/${repo.owner}/${repo.name}/${kind}/${repo.default_branch}/${e.path}`);
+      if (e.type === 'dir') loadFiles(repo, e.path);
+      else loadBlob(repo, e.path);
+    });
+    tbody.appendChild(tr);
+  }
+}
+
+async function loadBlob(repo, path) {
+  renderCrumb(repo, path, 'blob');
+  document.getElementById('files-table').classList.add('hidden');
+  const view = document.getElementById('file-view');
+  view.classList.remove('hidden');
+  view.textContent = 'Loading…';
+  const r = await apiFetch(`/repos/${repo.owner}/${repo.name}/contents/${path}`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    view.textContent = err.error || 'Could not load file.';
+    return;
+  }
+  const f = await r.json();
+  let text;
+  try {
+    // atob → bytes → UTF-8 so multibyte characters render correctly.
+    const bin = atob(f.content || '');
+    const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+    text = new TextDecoder().decode(bytes);
+  } catch {
+    view.textContent = '(binary file)';
+    return;
+  }
+  if (/\x00/.test(text)) {
+    view.textContent = `(binary file, ${fmtSize(f.size)})`;
+    return;
+  }
+  view.textContent = '';
+  for (const line of text.split('\n')) {
+    const span = document.createElement('span');
+    span.className = 'ln';
+    span.textContent = line === '' ? ' ' : line;
+    view.appendChild(span);
+  }
 }
 
 // ── Secrets / variables / environments (GitHub-compatible endpoints) ──────────
