@@ -644,7 +644,8 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   th, td { padding: 11px 10px !important; white-space: nowrap; }
 
-  /* Run detail: stack jobs sidebar above steps panel */
+  /* Run detail: jobs and steps collapse into horizontal chip rows so the
+     log box gets most of the screen — logs are what you came to read. */
   .detail-body {
     grid-template-columns: 1fr;
     min-height: unset;
@@ -652,12 +653,37 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   .jobs-sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 200px;
-    overflow-y: auto;
+    max-height: unset;
+    overflow: visible;
   }
-  .job-item, .step-item { padding: 11px 12px; }
-  .steps-list { max-height: 170px; }
-  .log-box    { min-height: 220px; font-size: 12px; }
+  .jobs-list, .steps-list {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding: 10px 12px;
+    max-height: unset;
+  }
+  .job-item, .step-item {
+    flex: 0 0 auto;
+    max-width: 78vw;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: var(--bg);
+  }
+  .job-item.active, .step-item.active {
+    border-color: var(--accent);
+    background: rgba(99,102,241,0.14);
+  }
+  .log-box {
+    min-height: 55vh;
+    font-size: 12px;
+    line-height: 1.55;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    padding: 12px 10px;
+  }
 
   /* Settings: full width */
   #settings-form { max-width: 100%; }
