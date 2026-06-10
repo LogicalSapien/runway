@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runway</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css?v=5">
+</head>
+<body>
+  <nav>
+    <span class="logo">&#x2708; Runway</span>
+    <button class="tab-btn active" data-tab="runs">Runs</button>
+    <button class="tab-btn" data-tab="queue">Queue</button>
+    <button class="tab-btn" data-tab="repos">Repos</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+    <button class="tab-btn tab-btn-users" data-tab="users">Users</button>
+    <span id="rl-nav-badge" class="rl-nav hidden"></span>
+    <span class="nav-spacer"></span>
+    <span id="user-bar" class="user-bar"></span>
+    <button id="logout-btn" class="btn-sm">Log out</button>
+  </nav>
+
+  <!-- change-password nudge (shown when must_change_pw=true) -->
+  <div id="change-pw-banner" class="change-pw-banner hidden">
+    <strong>Please change your default password.</strong>
+    <form id="change-pw-form" class="inline-form">
+      <input type="password" name="current_password" placeholder="Current password" required>
+      <input type="password" name="new_password" placeholder="New password (min 8 chars)" minlength="8" required>
+      <button type="submit">Change password</button>
+      <span id="change-pw-msg"></span>
+    </form>
+  </div>
+
+  <div id="rl-banner" class="rl-banner hidden"></div>
+
+  <main>
+    <!-- ── Runs tab ─────────────────────────────────────────────────────── -->
+    <section id="tab-runs" class="tab active">
+      <div id="runs-list-view">
+        <div class="toolbar">
+          <h2>CI Runs</h2>
+          <span id="runs-filter-title" class="filter-label hidden"></span>
+          <button id="clear-filter" class="hidden">&#x2715; Clear filter</button>
+          <button id="refresh-runs">&#x21BB; Refresh</button>
+        </div>
+        <table id="runs-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Repo</th><th>Workflow</th><th>Branch</th>
+              <th>Status</th><th>Started</th><th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="runs-body"></tbody>
+        </table>
+      </div>
+
+      <div id="run-detail" class="detail hidden">
+        <div class="detail-header">
+          <button id="close-detail">&#x2190; Back</button>
+          <div class="detail-meta">
+            <h3 id="detail-title"></h3>
+            <div id="detail-sub" class="detail-sub"></div>
+          </div>
+        </div>
+        <div class="detail-body">
+          <div class="jobs-sidebar" id="jobs-sidebar">
+            <div class="sidebar-heading">Jobs</div>
+            <ul id="jobs-list" class="jobs-list"></ul>
+          </div>
+          <div class="steps-panel" id="steps-panel">
+            <div class="steps-heading-row">
+              <span class="sidebar-heading" id="steps-job-label">Steps</span>
+            </div>
+            <ul id="steps-list" class="steps-list"></ul>
+            <pre id="log-output" class="log-box hidden"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Queue tab ───────────────────────────────────────────────────── -->
+    <section id="tab-queue" class="tab">
+      <div class="toolbar">
+        <h2>Queue</h2>
+        <button id="refresh-queue">&#x21BB; Refresh</button>
+      </div>
+      <table id="queue-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Workflow File</th><th>Branch</th>
+            <th>Status</th><th>Queued At</th><th>Wait</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+    </section>
+
+    <!-- ── Repos tab ───────────────────────────────────────────────────── -->
+    <section id="tab-repos" class="tab">
+      <div id="repos-list-view">
+        <div class="toolbar">
+          <h2>Repositories</h2>
+          <button id="add-repo-btn">+ Add Repo</button>
+        </div>
+        <table id="repos-table">
+          <thead>
+            <tr>
+              <th>Name</th><th>Owner</th><th>Git URL</th><th>Branch</th><th>Created</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="repos-body"></tbody>
+        </table>
+      </div>
+
+      <div id="repos-detail-view" class="hidden">
+        <div class="toolbar">
+          <button id="repos-back">&#x2190; Back</button>
+          <h2 id="repos-detail-title"></h2>
+          <button id="delete-repo-btn" class="btn-danger">Delete Repo</button>
+        </div>
+        <div class="repo-detail-meta" id="repo-detail-meta"></div>
+        <div class="toolbar" style="margin-top:20px">
+          <h3>Workflows</h3>
+          <button id="sync-repo-btn">&#x21BB; Sync Workflows</button>
+        </div>
+        <table id="workflows-table">
+          <thead>
+            <tr><th>Name</th><th>File</th><th>Runs</th><th>Last Status</th><th></th></tr>
+          </thead>
+          <tbody id="workflows-body"></tbody>
+        </table>
+        <div class="toolbar" style="margin-top:20px">
+          <h3>Recent Runs</h3>
+        </div>
+        <table id="repo-runs-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Workflow</th><th>Branch</th>
+              <th>Status</th><th>Started</th><th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="repo-runs-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Settings tab ────────────────────────────────────────────────── -->
+    <section id="tab-settings" class="tab">
+      <div class="toolbar"><h2>Settings</h2></div>
+      <form id="settings-form">
+        <label>
+          Concurrency (simultaneous runs)
+          <input type="number" name="concurrency" min="1" max="10" value="1">
+        </label>
+        <label>
+          Retention (days)
+          <input type="number" name="retention_days" min="1" max="365" value="30">
+        </label>
+        <label>
+          Platform mappings
+          <textarea name="act_platform_mappings" rows="6" placeholder="ubuntu-latest=catthehacker/ubuntu:act-22.04&#10;self-hosted=myregistry/runner:latest&#10;my-label=myregistry/runner:latest"></textarea>
+          <span class="field-hint">One <code>label=image</code> per line. Maps every <code>runs-on</code> label your workflows use to the correct Docker image. Replaces the per-label <code>-P</code> flags in <code>~/.actrc</code>.</span>
+        </label>
+        <label>
+          Container memory limit
+          <input type="text" name="docker_memory" placeholder="e.g. 2g">
+          <span class="field-hint">Max RAM per act container (e.g. 2g, 4g). Leave blank for no limit.</span>
+        </label>
+        <label>
+          Container CPU limit
+          <input type="text" name="docker_cpus" placeholder="e.g. 2">
+          <span class="field-hint">Max CPUs per act container (e.g. 2). Leave blank for no limit.</span>
+        </label>
+        <label>
+          Container options
+          <textarea name="act_container_options" rows="3" placeholder="-v /home/ci/.ssh/deploy_key:/root/.ssh/id_ed25519:ro -v /etc/docker/certs.d:/etc/docker/certs.d:ro"></textarea>
+          <span class="field-hint">Extra docker options for act job containers — volume mounts for SSH keys, registry certs, etc. Memory/CPU limits are appended automatically. act only accepts one <code>--container-options</code> flag so put everything here (not in <code>~/.actrc</code>).</span>
+        </label>
+        <div class="form-row">
+          <button type="submit">Save Settings</button>
+          <span id="settings-msg"></span>
+        </div>
+        <div id="rl-info" class="rl-info-box hidden">
+          <span class="sidebar-heading">Rate Limit</span>
+          <p>Remaining this window: <strong id="rl-remaining">—</strong></p>
+          <p>Window resets at: <strong id="rl-reset">—</strong></p>
+          <p>Limit per window: <strong id="rl-limit">—</strong></p>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <!-- ── Add Repo Modal ──────────────────────────────────────────────────── -->
+  <div id="add-repo-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Repository</h3>
+        <button class="modal-close" id="add-repo-close">&#x2715;</button>
+      </div>
+      <form id="add-repo-form">
+        <label>
+          Git URL <span class="required">*</span>
+          <input type="text" name="git_url" required placeholder="https://github.com/owner/repo.git">
+          <span class="field-hint">Owner and name are parsed from the URL automatically.</span>
+        </label>
+        <label>
+          Default Branch
+          <input type="text" name="default_branch" placeholder="main" value="main">
+        </label>
+        <label>
+          Deploy Key (optional)
+          <textarea name="deploy_key" rows="5" placeholder="Paste SSH private key PEM here (leave blank for system SSH)"></textarea>
+        </label>
+        <div class="form-row">
+          <button type="submit">Add Repository</button>
+          <span id="add-repo-msg"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Dispatch Modal ─────────────────────────────────────────────────── -->
+  <div id="dispatch-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="dispatch-modal-title">Dispatch Workflow</h3>
+        <button class="modal-close" id="dispatch-close">&#x2715;</button>
+      </div>
+      <form id="dispatch-form">
+        <input type="hidden" name="owner">
+        <input type="hidden" name="repo_name">
+        <input type="hidden" name="workflow_file">
+        <label>
+          Branch / Ref
+          <input type="text" name="ref" required placeholder="main">
+        </label>
+        <label>
+          Inputs (JSON, optional)
+          <textarea name="inputs" rows="4" placeholder='{"key": "value"}'></textarea>
+        </label>
+        <div class="form-row">
+          <button type="submit">Dispatch</button>
+          <span id="dispatch-msg"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Users tab ─────────────────────────────────────────────────────── -->
+  <section id="tab-users" class="tab">
+    <div class="toolbar"><h2>Users &amp; API Keys</h2></div>
+
+    <div class="card">
+      <h3>Change Password</h3>
+      <form id="change-pw-form-tab" class="settings-section">
+        <label>Current password<input type="password" name="current_password" required></label>
+        <label>New password (min 8 chars)<input type="password" name="new_password" minlength="8" required></label>
+        <div class="form-row">
+          <button type="submit">Change</button>
+          <span id="change-pw-tab-msg"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:1.5rem">
+      <h3>API Keys</h3>
+      <p class="hint">Keys are shown once on creation and cannot be retrieved again. Use in <code>Authorization: Bearer &lt;key&gt;</code>.</p>
+      <form id="create-key-form" class="inline-form" style="margin-bottom:1rem">
+        <input type="text" name="key_name" placeholder="Key name (e.g. my-agent)" required>
+        <button type="submit">Generate</button>
+        <span id="create-key-msg"></span>
+      </form>
+      <div id="new-key-box" class="key-reveal hidden">
+        <span class="key-reveal-label">Copy this key — it won&#39;t be shown again:</span>
+        <code id="new-key-value"></code>
+        <button id="dismiss-key-btn" class="btn-sm">Dismiss</button>
+      </div>
+      <table id="keys-table">
+        <thead><tr><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+        <tbody id="keys-body"></tbody>
+      </table>
+    </div>
+
+    <div id="admin-users-section" class="card" style="margin-top:1.5rem">
+      <h3>Manage Users <span class="role-badge">admin only</span></h3>
+      <form id="add-user-form" class="inline-form" style="margin-bottom:1rem">
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password (min 8 chars)" minlength="8" required>
+        <select name="role">
+          <option value="viewer">Viewer</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit">Add User</button>
+        <span id="add-user-msg"></span>
+      </form>
+      <table id="users-table">
+        <thead><tr><th>Username</th><th>Role</th><th>Must change PW</th><th>Created</th><th></th></tr></thead>
+        <tbody id="users-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script src="/app.js?v=5"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Build output
+runway
+
+# Local configuration — copy .env.example to .env and edit
+.env
+
+# SQLite database + sidecars
+*.db
+*.db-shm
+*.db-wal
+
+# Local data (DB, cloned repos)
+data/
+runway-data/
+/tmp/
+
+# Local QA artifacts (screenshots, manual test scripts)
+qa_artifacts/
+qa_*.py
+.playwright-mcp/
+/*.png

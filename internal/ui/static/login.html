@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runway — Login</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:2rem; width:100%; max-width:360px; }
+    .login-card h1 { font-size:1.4rem; margin:0 0 1.5rem; display:flex; align-items:center; gap:.5rem; }
+    .login-card label { display:block; margin-bottom:1rem; }
+    .login-card label span { display:block; font-size:.8rem; color:var(--muted); margin-bottom:.3rem; }
+    .login-card input { width:100%; box-sizing:border-box; }
+    .login-card button { width:100%; margin-top:.5rem; }
+    #login-error { color:var(--danger); font-size:.85rem; margin-top:.75rem; display:none; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>&#x2708; Runway</h1>
+    <form id="login-form">
+      <label>
+        <span>Username</span>
+        <input type="text" name="username" autocomplete="username" autofocus required>
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Sign in</button>
+      <div id="login-error"></div>
+    </form>
+  </div>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const err = document.getElementById('login-error');
+      err.style.display = 'none';
+      const data = Object.fromEntries(new FormData(e.target));
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        // Redirect to main app; the change-password banner shows if must_change_pw
+        window.location.href = '/';
+      } else {
+        const body = await res.json().catch(() => ({}));
+        err.textContent = body.error || 'Login failed';
+        err.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

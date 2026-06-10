@@ -1,0 +1,26 @@
+[Unit]
+Description=Runway CI Server
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=__RUNWAY_USER__
+WorkingDirectory=__RUNWAY_DIR__
+ExecStart=__RUNWAY_DIR__/runway
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=runway
+
+# Environment — defaults written by scripts/install.sh.
+# Override per-host values in __RUNWAY_DIR__/.env (loaded below) or via
+# /etc/systemd/system/runway.service.d/override.conf.
+Environment=PORT=8080
+Environment=DB_PATH=__DATA_DIR__/runway.db
+Environment=REPOS_ROOT=__DATA_DIR__/repos
+EnvironmentFile=-__RUNWAY_DIR__/.env
+
+[Install]
+WantedBy=multi-user.target
