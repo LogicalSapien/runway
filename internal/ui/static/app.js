@@ -760,9 +760,11 @@ async function loadRepos() {
 
 async function openRepo(repo) {
   _currentRepo = repo;
+  _currentScope = '';
   // Keep the URL on this repo (don't clobber a deeper /actions/... path).
   const base = `/${repo.owner}/${repo.name}`;
   if (!window.location.pathname.startsWith(base)) pushURL(base);
+  loadScopes(repo);
   document.getElementById('repos-list-view').classList.add('hidden');
   document.getElementById('repos-detail-view').classList.remove('hidden');
   document.getElementById('repos-detail-title').textContent = `${repo.owner}/${repo.name}`;
@@ -827,6 +829,149 @@ async function loadRepoRuns(repo) {
   const runs = resp.ok ? await resp.json() : [];
   renderRunsTable(runs, document.getElementById('repo-runs-body'));
 }
+
+// ── Secrets / variables / environments (GitHub-compatible endpoints) ──────────
+let _currentScope = ''; // '' = repository scope, otherwise environment name
+
+function scopeBase(repo) {
+  const root = `/repos/${repo.owner}/${repo.name}`;
+  return _currentScope ? `${root}/environments/${_currentScope}` : root;
+}
+
+async function loadScopes(repo) {
+  const sel = document.getElementById('env-scope');
+  const resp = await apiFetch(`/repos/${repo.owner}/${repo.name}/environments`);
+  const envs = resp.ok ? (await resp.json()).environments || [] : [];
+  sel.innerHTML = '';
+  const optRepo = document.createElement('option');
+  optRepo.value = '';
+  optRepo.textContent = 'Repository';
+  sel.appendChild(optRepo);
+  for (const e of envs) {
+    const o = document.createElement('option');
+    o.value = e.name;
+    o.textContent = 'env: ' + e.name;
+    sel.appendChild(o);
+  }
+  sel.value = _currentScope;
+  document.getElementById('delete-env-btn').classList.toggle('hidden', !_currentScope);
+  loadSecretsAndVars(repo);
+}
+
+async function loadSecretsAndVars(repo) {
+  const base = scopeBase(repo);
+  const sBody = document.getElementById('secrets-body');
+  const vBody = document.getElementById('vars-body');
+  sBody.innerHTML = '';
+  vBody.innerHTML = '';
+
+  const [sResp, vResp] = await Promise.all([
+    apiFetch(`${base}/actions/secrets`),
+    apiFetch(`${base}/actions/variables`),
+  ]);
+  const secrets = sResp.ok ? (await sResp.json()).secrets || [] : [];
+  const vars = vResp.ok ? (await vResp.json()).variables || [] : [];
+
+  const emptyRow = (tbody, cols, text) => {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = cols; td.textContent = text; td.style.color = 'var(--muted)';
+    tr.appendChild(td); tbody.appendChild(tr);
+  };
+
+  if (!secrets.length) emptyRow(sBody, 3, 'No secrets in this scope.');
+  for (const s of secrets) {
+    const tr = document.createElement('tr');
+    tr.appendChild(makeTd(s.name));
+    tr.appendChild(makeTd(fmtTime(s.updated_at)));
+    const td = document.createElement('td');
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.className = 'btn-danger btn-sm';
+    del.addEventListener('click', async () => {
+      if (!confirm(`Delete secret ${s.name}?`)) return;
+      await apiFetch(`${base}/actions/secrets/${s.name}`, { method: 'DELETE' });
+      loadSecretsAndVars(repo);
+    });
+    td.appendChild(del);
+    tr.appendChild(td);
+    sBody.appendChild(tr);
+  }
+
+  if (!vars.length) emptyRow(vBody, 3, 'No variables in this scope.');
+  for (const v of vars) {
+    const tr = document.createElement('tr');
+    tr.appendChild(makeTd(v.name));
+    tr.appendChild(makeTd(v.value));
+    const td = document.createElement('td');
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.className = 'btn-danger btn-sm';
+    del.addEventListener('click', async () => {
+      if (!confirm(`Delete variable ${v.name}?`)) return;
+      await apiFetch(`${base}/actions/variables/${v.name}`, { method: 'DELETE' });
+      loadSecretsAndVars(repo);
+    });
+    td.appendChild(del);
+    tr.appendChild(td);
+    vBody.appendChild(tr);
+  }
+}
+
+document.getElementById('env-scope').addEventListener('change', (e) => {
+  _currentScope = e.target.value;
+  document.getElementById('delete-env-btn').classList.toggle('hidden', !_currentScope);
+  if (_currentRepo) loadSecretsAndVars(_currentRepo);
+});
+
+document.getElementById('add-env-btn').addEventListener('click', async () => {
+  if (!_currentRepo) return;
+  const name = prompt('Environment name (e.g. production, staging):');
+  if (!name) return;
+  const r = await apiFetch(`/repos/${_currentRepo.owner}/${_currentRepo.name}/environments/${encodeURIComponent(name)}`, { method: 'PUT' });
+  if (r.ok) { _currentScope = name; loadScopes(_currentRepo); }
+  else alert('Failed to create environment.');
+});
+
+document.getElementById('delete-env-btn').addEventListener('click', async () => {
+  if (!_currentRepo || !_currentScope) return;
+  if (!confirm(`Delete environment "${_currentScope}" and all its secrets/variables?`)) return;
+  const r = await apiFetch(`/repos/${_currentRepo.owner}/${_currentRepo.name}/environments/${encodeURIComponent(_currentScope)}`, { method: 'DELETE' });
+  if (r.ok || r.status === 204) { _currentScope = ''; loadScopes(_currentRepo); }
+  else alert('Failed to delete environment.');
+});
+
+document.getElementById('add-secret-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!_currentRepo) return;
+  const form = e.target;
+  const msg = document.getElementById('add-secret-msg');
+  const r = await apiFetch(`${scopeBase(_currentRepo)}/actions/secrets/${form.name.value.trim()}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: form.value.value }),
+  });
+  msg.style.color = r.ok ? 'var(--success)' : 'var(--failure)';
+  msg.textContent = r.ok ? 'Saved.' : 'Error: ' + ((await r.json().catch(() => ({})))?.error || r.status);
+  if (r.ok) { form.reset(); loadSecretsAndVars(_currentRepo); }
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+});
+
+document.getElementById('add-var-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!_currentRepo) return;
+  const form = e.target;
+  const msg = document.getElementById('add-var-msg');
+  const r = await apiFetch(`${scopeBase(_currentRepo)}/actions/variables`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: form.name.value.trim(), value: form.value.value }),
+  });
+  msg.style.color = r.ok ? 'var(--success)' : 'var(--failure)';
+  msg.textContent = r.ok ? 'Saved.' : 'Error: ' + ((await r.json().catch(() => ({})))?.error || r.status);
+  if (r.ok) { form.reset(); loadSecretsAndVars(_currentRepo); }
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+});
 
 document.getElementById('repos-back').addEventListener('click', () => {
   pushURL('/repos');

@@ -676,12 +676,20 @@ tr:hover td { background: var(--surface); cursor: pointer; }
     border-color: var(--accent);
     background: rgba(99,102,241,0.14);
   }
+  /* min-width:0 lets the grid/flex children shrink below their content's
+     min-content width — without it long unbroken log tokens push the panel
+     wider than the viewport and the right edge gets clipped. */
+  .detail-body, .steps-panel, .jobs-sidebar { min-width: 0; }
   .log-box {
     min-height: 55vh;
+    max-width: 100%;
+    min-width: 0;
     font-size: 12px;
     line-height: 1.55;
-    word-break: normal;
+    white-space: pre-wrap;
+    word-break: break-word;
     overflow-wrap: anywhere;
+    overflow-x: hidden;
     padding: 12px 10px;
   }
 

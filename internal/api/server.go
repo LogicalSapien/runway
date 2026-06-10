@@ -8,20 +8,22 @@ import (
 	"net/http"
 
 	"github.com/aedatum/runway/internal/middleware"
+	"github.com/aedatum/runway/internal/secrets"
 	"github.com/aedatum/runway/internal/ui"
 )
 
-// Server holds shared state (DB handle) and the request multiplexer.
+// Server holds shared state (DB handle, secrets cipher) and the multiplexer.
 type Server struct {
-	db  *sql.DB
-	mux *http.ServeMux
+	db     *sql.DB
+	cipher *secrets.Cipher
+	mux    *http.ServeMux
 }
 
 // NewServer creates a Server, registers all routes, and returns it.
 // The caller is responsible for wrapping the returned handler with auth
 // middleware before passing it to http.Server.
-func NewServer(db *sql.DB) *Server {
-	s := &Server{db: db, mux: http.NewServeMux()}
+func NewServer(db *sql.DB, cipher *secrets.Cipher) *Server {
+	s := &Server{db: db, cipher: cipher, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -63,6 +65,35 @@ func (s *Server) routes() {
 		"GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs",
 		s.ghGetRunLogs,
 	)
+
+	// Secrets / variables / environments (GitHub-compatible shapes).
+	// Secret values are write-only; reads return metadata. Writes are admin.
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/secrets/public-key", s.getPublicKey)
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/secrets", s.listSecrets)
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/secrets/{name}", s.getSecret)
+	s.mux.HandleFunc("PUT    /repos/{owner}/{repo}/actions/secrets/{name}", middleware.RequireAdmin(s.db, s.putSecret))
+	s.mux.HandleFunc("DELETE /repos/{owner}/{repo}/actions/secrets/{name}", middleware.RequireAdmin(s.db, s.deleteSecret))
+
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/variables", s.listVariables)
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/actions/variables/{name}", s.getVariable)
+	s.mux.HandleFunc("POST   /repos/{owner}/{repo}/actions/variables", middleware.RequireAdmin(s.db, s.createVariable))
+	s.mux.HandleFunc("PATCH  /repos/{owner}/{repo}/actions/variables/{name}", middleware.RequireAdmin(s.db, s.patchVariable))
+	s.mux.HandleFunc("DELETE /repos/{owner}/{repo}/actions/variables/{name}", middleware.RequireAdmin(s.db, s.deleteVariable))
+
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/environments", s.listEnvs)
+	s.mux.HandleFunc("PUT    /repos/{owner}/{repo}/environments/{environment}", middleware.RequireAdmin(s.db, s.putEnv))
+	s.mux.HandleFunc("DELETE /repos/{owner}/{repo}/environments/{environment}", middleware.RequireAdmin(s.db, s.deleteEnv))
+
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/environments/{environment}/secrets", s.listSecrets)
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/environments/{environment}/secrets/{name}", s.getSecret)
+	s.mux.HandleFunc("PUT    /repos/{owner}/{repo}/environments/{environment}/secrets/{name}", middleware.RequireAdmin(s.db, s.putSecret))
+	s.mux.HandleFunc("DELETE /repos/{owner}/{repo}/environments/{environment}/secrets/{name}", middleware.RequireAdmin(s.db, s.deleteSecret))
+
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/environments/{environment}/variables", s.listVariables)
+	s.mux.HandleFunc("GET    /repos/{owner}/{repo}/environments/{environment}/variables/{name}", s.getVariable)
+	s.mux.HandleFunc("POST   /repos/{owner}/{repo}/environments/{environment}/variables", middleware.RequireAdmin(s.db, s.createVariable))
+	s.mux.HandleFunc("PATCH  /repos/{owner}/{repo}/environments/{environment}/variables/{name}", middleware.RequireAdmin(s.db, s.patchVariable))
+	s.mux.HandleFunc("DELETE /repos/{owner}/{repo}/environments/{environment}/variables/{name}", middleware.RequireAdmin(s.db, s.deleteVariable))
 
 	// ── Runway-native API ─────────────────────────────────────────────────
 	s.mux.HandleFunc("GET /api/runs", s.listRuns)

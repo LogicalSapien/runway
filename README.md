@@ -61,6 +61,18 @@ For production (systemd service, reverse proxy, TLS), see **[SETUP.md](SETUP.md)
 | `GET` | `/repos/{owner}/{repo}/actions/runs/{run_id}/logs` |
 | `GET` | `/repos/{owner}/{repo}/actions/jobs/{job_id}` |
 | `GET` | `/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` |
+| `GET` | `/repos/{owner}/{repo}/actions/secrets/public-key` |
+| `GET/PUT/DELETE` | `/repos/{owner}/{repo}/actions/secrets[/{name}]` |
+| `GET/POST/PATCH/DELETE` | `/repos/{owner}/{repo}/actions/variables[/{name}]` |
+| `GET/PUT/DELETE` | `/repos/{owner}/{repo}/environments[/{name}]` |
+| * | `/repos/{owner}/{repo}/environments/{env}/secrets\|variables[/{name}]` |
+
+Secrets accept GitHub's sealed-box body (`encrypted_value` against the public
+key) or a plaintext `{"value": "..."}` extension. Values are AES-256-GCM
+encrypted at rest and write-only — reads return metadata. At run time Runway
+merges the global `SECRETS_FILE`, repo-level values, and environment-scoped
+values (highest precedence) into per-run `--secret-file`/`--var-file` files;
+workflows read them as `${{ secrets.NAME }}` and `${{ vars.NAME }}`.
 
 Authenticate with `Authorization: Bearer <api key>` (create keys in the UI under Users → API keys).
 

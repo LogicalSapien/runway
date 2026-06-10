@@ -4,7 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"os"
+	"path/filepath"
+	"regexp"
 	"time"
+
+	dbpkg "github.com/aedatum/runway/internal/db"
+	"github.com/aedatum/runway/internal/secrets"
 )
 
 // Engine is a background goroutine that drains the queue table, respecting a
@@ -14,13 +20,14 @@ import (
 // cannot cause over-scheduling.
 type Engine struct {
 	db       *sql.DB
-	reposDir string // base directory for cloned repos (REPOS_ROOT)
+	reposDir string          // base directory for cloned repos (REPOS_ROOT)
+	cipher   *secrets.Cipher // decrypts repo/environment secrets; nil = disabled
 }
 
 // NewEngine creates a queue engine.  reposDir is the root under which repos are
 // cloned (one sub-directory per repo, named after repo.name).
-func NewEngine(db *sql.DB, reposDir string) *Engine {
-	return &Engine{db: db, reposDir: reposDir}
+func NewEngine(db *sql.DB, reposDir string, cipher *secrets.Cipher) *Engine {
+	return &Engine{db: db, reposDir: reposDir, cipher: cipher}
 }
 
 // Run starts the engine and blocks until ctx is cancelled.
@@ -176,9 +183,11 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 	// Link queue item to run
 	e.exec(`UPDATE queue SET run_id=? WHERE id=?`, runID, qi.ID)
 
-	// 3. run act — secrets file is optional; empty means no --secret-file flag.
-	secretsFile := e.settingOrDefault("secrets_file", "")
-	runner := NewRunner(e.db, qi, runID, clonePath, sha, secretsFile)
+	// 3. run act — merge the operator's global secrets file with this repo's
+	// stored secrets/variables into per-run temp files (deleted afterwards).
+	secretsFile, varsFile, cleanupFiles := e.buildRunFiles(qi, clonePath)
+	defer cleanupFiles()
+	runner := NewRunner(e.db, qi, runID, clonePath, sha, secretsFile, varsFile)
 	exitCode, runErr := runner.Run(ctx)
 
 	// 4. finish
@@ -198,6 +207,90 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 
 	log.Printf("queue: finished run=%d repo=%s status=%s exit=%d",
 		runID, qi.RepoName, status, exitCode)
+}
+
+// envRefRe matches "environment: name" and the block form's "name: x" line in
+// workflow YAML — a heuristic to decide which environment scopes apply to a run
+// (act itself does not resolve GitHub environments).
+var envRefRe = regexp.MustCompile(`(?m)^\s*(?:environment|name):\s*['"]?([A-Za-z0-9._-]+)['"]?\s*$`)
+
+// buildRunFiles merges the operator's global secrets file with this repo's
+// stored secrets and variables into per-run 0600 temp files. Environment-scoped
+// values apply when the workflow file references that environment, overriding
+// repo-level values of the same name. Returns ("", "", noop) on full failure —
+// the run proceeds with whatever could be built.
+func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, varsFile string, cleanup func()) {
+	cleanup = func() {}
+
+	// Environments referenced by this workflow ∩ environments defined for the repo.
+	var envs []string
+	if wf, err := os.ReadFile(filepath.Join(clonePath, ".github", "workflows", qi.WorkflowFile)); err == nil {
+		defined, _ := dbpkg.ListEnvironments(e.db, qi.RepoID)
+		referenced := map[string]bool{}
+		for _, m := range envRefRe.FindAllStringSubmatch(string(wf), -1) {
+			referenced[m[1]] = true
+		}
+		for _, d := range defined {
+			if referenced[d] {
+				envs = append(envs, d)
+			}
+		}
+	}
+
+	// Secrets: global file first, repo/env values override.
+	merged := map[string]string{}
+	if global := e.settingOrDefault("secrets_file", ""); global != "" {
+		if b, err := os.ReadFile(global); err == nil {
+			merged = secrets.ParseDotenv(string(b))
+		}
+	}
+	if e.cipher != nil {
+		encVals, err := dbpkg.SecretValuesForRun(e.db, qi.RepoID, envs)
+		if err != nil {
+			log.Printf("queue: load secrets repo=%d: %v", qi.RepoID, err)
+		}
+		for name, enc := range encVals {
+			val, err := e.cipher.Decrypt(enc)
+			if err != nil {
+				log.Printf("queue: decrypt secret %s: %v (skipped)", name, err)
+				continue
+			}
+			merged[name] = val
+		}
+	}
+
+	var paths []string
+	if len(merged) > 0 {
+		p, err := secrets.WriteDotenvFile("runway-secrets-*", merged)
+		if err != nil {
+			log.Printf("queue: write secrets file: %v", err)
+		} else {
+			secretsFile = p
+			paths = append(paths, p)
+		}
+	}
+
+	// Variables (plaintext, exposed as ${{ vars.NAME }}).
+	vars, err := dbpkg.VariableValuesForRun(e.db, qi.RepoID, envs)
+	if err != nil {
+		log.Printf("queue: load variables repo=%d: %v", qi.RepoID, err)
+	}
+	if len(vars) > 0 {
+		p, err := secrets.WriteDotenvFile("runway-vars-*", vars)
+		if err != nil {
+			log.Printf("queue: write vars file: %v", err)
+		} else {
+			varsFile = p
+			paths = append(paths, p)
+		}
+	}
+
+	cleanup = func() {
+		for _, p := range paths {
+			_ = os.Remove(p)
+		}
+	}
+	return secretsFile, varsFile, cleanup
 }
 
 // failQueueItem marks a queue item as done with an error (no run created / run

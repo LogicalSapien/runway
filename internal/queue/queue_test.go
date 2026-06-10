@@ -56,7 +56,7 @@ func TestDequeueRespectsConcurrencyLimit(t *testing.T) {
 		enqueue(t, d, repoID, "queued")
 	}
 
-	e := NewEngine(d, t.TempDir())
+	e := NewEngine(d, t.TempDir(), nil)
 
 	items, err := e.dequeue(2)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestDequeueCountsPreexistingRunning(t *testing.T) {
 	enqueue(t, d, repoID, "running") // e.g. claimed before a restart
 	enqueue(t, d, repoID, "queued")
 
-	e := NewEngine(d, t.TempDir())
+	e := NewEngine(d, t.TempDir(), nil)
 	items, err := e.dequeue(1)
 	if err != nil {
 		t.Fatalf("dequeue: %v", err)
@@ -106,7 +106,7 @@ func TestHealStaleFailsRunningItems(t *testing.T) {
 	repoID := insertRepo(t, d)
 	id := enqueue(t, d, repoID, "running")
 
-	e := NewEngine(d, t.TempDir())
+	e := NewEngine(d, t.TempDir(), nil)
 	e.healStale()
 
 	var status string

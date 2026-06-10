@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/aedatum/runway/internal/poller"
 	"github.com/aedatum/runway/internal/queue"
 	"github.com/aedatum/runway/internal/retention"
+	"github.com/aedatum/runway/internal/secrets"
 	"github.com/aedatum/runway/internal/watcher"
 )
 
@@ -47,6 +49,13 @@ func main() {
 		}
 	}
 
+	// Master key for encrypting stored secrets (env var, or a keyfile created
+	// next to the database on first boot).
+	cipher, err := secrets.LoadKey(cfg.SecretsKey, filepath.Dir(cfg.DBPath))
+	if err != nil {
+		log.Fatalf("secrets key: %v", err)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -63,7 +72,7 @@ func main() {
 	go gp.Run(ctx)
 
 	// Queue engine (drains queue table, runs act, streams logs to DB).
-	qe := queue.NewEngine(database, cfg.ReposRoot)
+	qe := queue.NewEngine(database, cfg.ReposRoot, cipher)
 	go qe.Run(ctx)
 
 	// Retention cleanup (prunes old runs/logs per retention_days setting).
@@ -71,7 +80,7 @@ func main() {
 	go rj.Run(ctx)
 
 	// HTTP server — a single Server handles all routes (/api/*, /repos/*, /).
-	srv := api.NewServer(database)
+	srv := api.NewServer(database, cipher)
 	handler := middleware.Auth(database, srv)
 
 	httpSrv := &http.Server{

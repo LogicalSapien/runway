@@ -10,16 +10,22 @@ import (
 	"time"
 
 	dbpkg "github.com/aedatum/runway/internal/db"
+	"github.com/aedatum/runway/internal/secrets"
 )
 
 func newTestServer(t *testing.T) (*Server, *sql.DB) {
 	t.Helper()
-	d, err := dbpkg.Open(filepath.Join(t.TempDir(), "test.db"))
+	dir := t.TempDir()
+	d, err := dbpkg.Open(filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
 	t.Cleanup(func() { d.Close() })
-	return NewServer(d), d
+	cipher, err := secrets.LoadKey("", dir)
+	if err != nil {
+		t.Fatalf("load test cipher: %v", err)
+	}
+	return NewServer(d, cipher), d
 }
 
 func registerRepo(t *testing.T, d *sql.DB) {

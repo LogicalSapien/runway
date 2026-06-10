@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Runway</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
   <nav>
@@ -130,6 +130,40 @@
           </thead>
           <tbody id="workflows-body"></tbody>
         </table>
+        <div class="toolbar" style="margin-top:20px">
+          <h3>Secrets &amp; Variables</h3>
+          <select id="env-scope" title="Scope"></select>
+          <button id="add-env-btn" class="btn-sm">+ Environment</button>
+          <button id="delete-env-btn" class="btn-danger btn-sm hidden">Delete environment</button>
+        </div>
+        <div class="card" id="secrets-card">
+          <h3>Secrets</h3>
+          <p class="field-hint">Available to workflows as <code>${{ secrets.NAME }}</code>. Encrypted at rest; values are write-only. Environment-scoped secrets override repository ones when a workflow uses that environment.</p>
+          <table id="secrets-table">
+            <thead><tr><th>Name</th><th>Updated</th><th></th></tr></thead>
+            <tbody id="secrets-body"></tbody>
+          </table>
+          <form id="add-secret-form" class="inline-form" style="margin-top:10px">
+            <input type="text" name="name" placeholder="SECRET_NAME" required pattern="[A-Za-z_][A-Za-z0-9_]*">
+            <input type="password" name="value" placeholder="value" required autocomplete="off">
+            <button type="submit">Save secret</button>
+            <span id="add-secret-msg"></span>
+          </form>
+
+          <h3 style="margin-top:18px">Variables</h3>
+          <p class="field-hint">Non-secret configuration, available as <code>${{ vars.NAME }}</code>.</p>
+          <table id="vars-table">
+            <thead><tr><th>Name</th><th>Value</th><th></th></tr></thead>
+            <tbody id="vars-body"></tbody>
+          </table>
+          <form id="add-var-form" class="inline-form" style="margin-top:10px">
+            <input type="text" name="name" placeholder="VAR_NAME" required pattern="[A-Za-z_][A-Za-z0-9_]*">
+            <input type="text" name="value" placeholder="value" required>
+            <button type="submit">Save variable</button>
+            <span id="add-var-msg"></span>
+          </form>
+        </div>
+
         <div class="toolbar" style="margin-top:20px">
           <h3>Recent Runs</h3>
         </div>
@@ -316,6 +350,6 @@
     <button class="bnav-btn" id="bnav-more"><span class="bnav-icon">&#x22EF;</span><span class="bnav-label">More</span></button>
   </nav>
 
-  <script src="/app.js?v=6"></script>
+  <script src="/app.js?v=8"></script>
 </body>
 </html>

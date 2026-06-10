@@ -23,8 +23,13 @@ purpose**, not a vulnerability. The boundaries you should understand:
   on the host's Docker daemon. A malicious workflow has the same blast
   radius as `docker run` for the service user. Do not run Runway on a host
   whose Docker daemon you wouldn't hand to your CI jobs.
-- **Secrets in `SECRETS_FILE` are visible to every workflow** that runs,
-  by design (act's `--secret-file`). Scope them to CI use.
+- **Secrets in the global `SECRETS_FILE` are visible to every workflow** that
+  runs, by design (act's `--secret-file`). Prefer per-repo or per-environment
+  secrets (Settings → repo → Secrets), which only reach that repo's runs and
+  are AES-256-GCM encrypted at rest. The master key lives in
+  `RUNWAY_SECRETS_KEY` or the auto-generated `secrets.key` file next to the
+  database — whoever holds both the DB and the key can decrypt, so protect
+  and back up the key separately.
 - **Deploy keys** are stored in the SQLite database (plaintext at rest) and
   written to `0600` temp files for the duration of a run. Anyone with read
   access to the database file or root on the host can read them — protect

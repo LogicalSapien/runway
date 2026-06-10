@@ -22,7 +22,8 @@ type Runner struct {
 	runID       int64
 	clonePath   string
 	sha         string
-	secretsFile string
+	secretsFile string // merged per-run secrets file (act --secret-file)
+	varsFile    string // merged per-run variables file (act --var-file)
 }
 
 // NewRunner constructs a Runner.
@@ -30,7 +31,7 @@ func NewRunner(
 	db *sql.DB,
 	qi QueueItem,
 	runID int64,
-	clonePath, sha, secretsFile string,
+	clonePath, sha, secretsFile, varsFile string,
 ) *Runner {
 	return &Runner{
 		db:          db,
@@ -39,6 +40,7 @@ func NewRunner(
 		clonePath:   clonePath,
 		sha:         sha,
 		secretsFile: secretsFile,
+		varsFile:    varsFile,
 	}
 }
 
@@ -117,6 +119,11 @@ func (r *Runner) buildArgs() []string {
 	if r.secretsFile != "" {
 		if _, err := os.Stat(r.secretsFile); err == nil {
 			args = append(args, "--secret-file", r.secretsFile)
+		}
+	}
+	if r.varsFile != "" {
+		if _, err := os.Stat(r.varsFile); err == nil {
+			args = append(args, "--var-file", r.varsFile)
 		}
 	}
 

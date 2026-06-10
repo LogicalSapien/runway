@@ -19,6 +19,7 @@ type Config struct {
 	RunnerDir        string
 	AdminPassword    string
 	SecretsFile      string // act --secret-file path; empty = no secrets file
+	SecretsKey       string // hex master key for stored secrets; empty = keyfile next to the DB
 	PlatformMappings string // newline-separated label=image pairs for act -P flags
 	ContainerOpts    string // extra docker options for act job containers (volume mounts etc.)
 	DockerMemory     string // memory limit for act containers (e.g. "2g")
@@ -33,6 +34,7 @@ func Load() *Config {
 		RunnerDir:        getenv("RUNNER_DIR", "./data/runner"),
 		AdminPassword:    getenv("ADMIN_PASSWORD", ""),
 		SecretsFile:      getenv("SECRETS_FILE", ""),
+		SecretsKey:       getenv("RUNWAY_SECRETS_KEY", ""),
 		PlatformMappings: getenv("ACT_PLATFORM_MAPPINGS", DefaultPlatformMappings),
 		ContainerOpts:    getenv("ACT_CONTAINER_OPTIONS", ""),
 		DockerMemory:     getenv("DOCKER_MEMORY", "2g"),

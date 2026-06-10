@@ -26,6 +26,12 @@ func UserFromContext(ctx context.Context) *dbpkg.User {
 	return u
 }
 
+// WithUser returns a context carrying u — what Auth does on success. Exported
+// so handler tests can exercise RequireAdmin without the full middleware.
+func WithUser(ctx context.Context, u *dbpkg.User) context.Context {
+	return context.WithValue(ctx, ctxUser, u)
+}
+
 // Auth wraps next with authentication enforcement.
 //
 // Protected paths: /api/* and /repos/* (except /api/health and /login*).

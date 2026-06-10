@@ -19,7 +19,7 @@ func TestBuildArgsMergesContainerOptions(t *testing.T) {
 		}
 	}
 
-	r := NewRunner(d, QueueItem{WorkflowFile: "ci.yml", RepoName: "app", Branch: "main"}, 1, "/tmp", "abc", "")
+	r := NewRunner(d, QueueItem{WorkflowFile: "ci.yml", RepoName: "app", Branch: "main"}, 1, "/tmp", "abc", "", "")
 	args := r.buildArgs()
 
 	// act accepts exactly one --container-options flag; operator mounts and
@@ -53,7 +53,7 @@ func TestBuildArgsNoBareActLabelFlag(t *testing.T) {
 	// the real binary errors out on it) — labels must only ever appear inside
 	// the --container-options value.
 	d := openTestDB(t)
-	r := NewRunner(d, QueueItem{WorkflowFile: "ci.yml", RepoName: "app", Branch: "main"}, 1, "/tmp", "abc", "")
+	r := NewRunner(d, QueueItem{WorkflowFile: "ci.yml", RepoName: "app", Branch: "main"}, 1, "/tmp", "abc", "", "")
 	args := r.buildArgs()
 	for i, a := range args {
 		if a == "--label" {
