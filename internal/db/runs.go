@@ -62,7 +62,8 @@ type ListRunsFilter struct {
 	Repo     string // filter by repo name
 	Workflow string // filter by workflow name
 	Status   string // filter by status
-	Limit    int    // 0 → default of 50
+	Limit    int
+	Offset   int    // 0 → default of 50
 }
 
 // ListRuns returns runs in reverse chronological order, applying any filters
@@ -90,8 +91,8 @@ func ListRuns(db *sql.DB, f ListRunsFilter) ([]Run, error) {
 		q += " AND status=?"
 		args = append(args, f.Status)
 	}
-	q += " ORDER BY created_at DESC LIMIT ?"
-	args = append(args, limit)
+	q += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, f.Offset)
 
 	rows, err := db.Query(q, args...)
 	if err != nil {

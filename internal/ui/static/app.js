@@ -365,12 +365,18 @@ document.getElementById('logout-btn')?.addEventListener('click', doLogout);
 // RUNS TAB
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function loadRuns() {
+const RUNS_PAGE = 50;
+let _runsOffset = 0;
+
+async function loadRuns(append) {
   document.getElementById('runs-filter-title').classList.add('hidden');
   document.getElementById('clear-filter').classList.add('hidden');
-  const resp = await apiFetch('/api/runs?limit=100');
+  if (!append) _runsOffset = 0;
+  const resp = await apiFetch(`/api/runs?limit=${RUNS_PAGE}&offset=${_runsOffset}`);
   const runs = resp.ok ? await resp.json() : [];
-  renderRunsTable(runs, document.getElementById('runs-body'));
+  renderRunsTable(runs, document.getElementById('runs-body'), append);
+  _runsOffset += runs.length;
+  document.getElementById('load-more-runs').classList.toggle('hidden', runs.length < RUNS_PAGE);
   showRunsList();
 }
 
@@ -388,8 +394,9 @@ async function loadRunsFiltered(repo, workflow) {
   showRunsList();
 }
 
-function renderRunsTable(runs, tbody) {
-  tbody.innerHTML = '';
+function renderRunsTable(runs, tbody, append) {
+  if (!append) tbody.innerHTML = '';
+  if (append && !runs.length) return;
   if (!runs.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
@@ -737,6 +744,13 @@ document.getElementById('close-detail').addEventListener('click', () => {
 });
 
 document.getElementById('refresh-runs').addEventListener('click', () => { pushURL('/'); loadRuns(); });
+document.getElementById('load-more-runs').addEventListener('click', () => loadRuns(true));
+document.querySelector('nav .logo').style.cursor = 'pointer';
+document.querySelector('nav .logo').addEventListener('click', () => {
+  pushURL('/');
+  switchToTab('runs');
+  loadRuns();
+});
 document.getElementById('clear-filter').addEventListener('click', () => { pushURL('/'); loadRuns(); });
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -102,7 +102,11 @@ func (s *Server) ghListRuns(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 {
 		limit = 30
 	}
-	filter := dbpkg.ListRunsFilter{Repo: repo, Limit: limit}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	filter := dbpkg.ListRunsFilter{Repo: repo, Limit: limit, Offset: (page - 1) * limit}
 	if wf := r.URL.Query().Get("workflow_id"); wf != "" {
 		filter.Workflow = wf
 	}
@@ -146,11 +150,16 @@ func (s *Server) ghGetRun(w http.ResponseWriter, r *http.Request) {
 // listRuns handles GET /api/runs
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if offset < 0 {
+		offset = 0
+	}
 	filter := dbpkg.ListRunsFilter{
 		Repo:     r.URL.Query().Get("repo"),
 		Workflow: r.URL.Query().Get("workflow"),
 		Status:   r.URL.Query().Get("status"),
 		Limit:    limit,
+		Offset:   offset,
 	}
 	runs, err := dbpkg.ListRuns(s.db, filter)
 	if err != nil {
