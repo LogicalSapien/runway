@@ -833,9 +833,15 @@ async function loadRepoRuns(repo) {
 // ── Secrets / variables / environments (GitHub-compatible endpoints) ──────────
 let _currentScope = ''; // '' = repository scope, otherwise environment name
 
-function scopeBase(repo) {
+// scopePath builds the GitHub-shaped endpoint for the active scope:
+// repo level lives under /actions/{kind}, environment level under
+// /environments/{env}/{kind} (no /actions segment — same as GitHub).
+function scopePath(repo, kind, name) {
   const root = `/repos/${repo.owner}/${repo.name}`;
-  return _currentScope ? `${root}/environments/${_currentScope}` : root;
+  const prefix = _currentScope
+    ? `${root}/environments/${encodeURIComponent(_currentScope)}`
+    : `${root}/actions`;
+  return `${prefix}/${kind}${name ? '/' + encodeURIComponent(name) : ''}`;
 }
 
 async function loadScopes(repo) {
@@ -859,15 +865,14 @@ async function loadScopes(repo) {
 }
 
 async function loadSecretsAndVars(repo) {
-  const base = scopeBase(repo);
   const sBody = document.getElementById('secrets-body');
   const vBody = document.getElementById('vars-body');
   sBody.innerHTML = '';
   vBody.innerHTML = '';
 
   const [sResp, vResp] = await Promise.all([
-    apiFetch(`${base}/actions/secrets`),
-    apiFetch(`${base}/actions/variables`),
+    apiFetch(scopePath(repo, 'secrets')),
+    apiFetch(scopePath(repo, 'variables')),
   ]);
   const secrets = sResp.ok ? (await sResp.json()).secrets || [] : [];
   const vars = vResp.ok ? (await vResp.json()).variables || [] : [];
@@ -890,7 +895,7 @@ async function loadSecretsAndVars(repo) {
     del.className = 'btn-danger btn-sm';
     del.addEventListener('click', async () => {
       if (!confirm(`Delete secret ${s.name}?`)) return;
-      await apiFetch(`${base}/actions/secrets/${s.name}`, { method: 'DELETE' });
+      await apiFetch(scopePath(repo, 'secrets', s.name), { method: 'DELETE' });
       loadSecretsAndVars(repo);
     });
     td.appendChild(del);
@@ -909,7 +914,7 @@ async function loadSecretsAndVars(repo) {
     del.className = 'btn-danger btn-sm';
     del.addEventListener('click', async () => {
       if (!confirm(`Delete variable ${v.name}?`)) return;
-      await apiFetch(`${base}/actions/variables/${v.name}`, { method: 'DELETE' });
+      await apiFetch(scopePath(repo, 'variables', v.name), { method: 'DELETE' });
       loadSecretsAndVars(repo);
     });
     td.appendChild(del);
@@ -946,7 +951,7 @@ document.getElementById('add-secret-form').addEventListener('submit', async (e) 
   if (!_currentRepo) return;
   const form = e.target;
   const msg = document.getElementById('add-secret-msg');
-  const r = await apiFetch(`${scopeBase(_currentRepo)}/actions/secrets/${form.name.value.trim()}`, {
+  const r = await apiFetch(scopePath(_currentRepo, 'secrets', form.name.value.trim()), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: form.value.value }),
@@ -962,7 +967,7 @@ document.getElementById('add-var-form').addEventListener('submit', async (e) => 
   if (!_currentRepo) return;
   const form = e.target;
   const msg = document.getElementById('add-var-msg');
-  const r = await apiFetch(`${scopeBase(_currentRepo)}/actions/variables`, {
+  const r = await apiFetch(scopePath(_currentRepo, 'variables'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: form.name.value.trim(), value: form.value.value }),
