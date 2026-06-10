@@ -66,6 +66,14 @@ func (s *Server) routes() {
 		s.ghGetRunLogs,
 	)
 
+	// Webhooks (HMAC-authenticated), re-run/cancel, badges, artifacts.
+	s.mux.HandleFunc("POST /webhooks/github", s.githubWebhook)
+	s.mux.HandleFunc("POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun", s.rerunRun)
+	s.mux.HandleFunc("POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel", s.cancelRun)
+	s.mux.HandleFunc("GET  /repos/{owner}/{repo}/actions/workflows/{workflow_file}/badge.svg", s.badge)
+	s.mux.HandleFunc("GET  /api/runs/{id}/artifacts", s.listArtifacts)
+	s.mux.HandleFunc("GET  /api/runs/{id}/artifacts/{path...}", s.downloadArtifact)
+
 	// Contents — basic GitHub-compatible read of the local checkout.
 	s.mux.HandleFunc("GET /repos/{owner}/{repo}/contents", s.getContents)
 	s.mux.HandleFunc("GET /repos/{owner}/{repo}/contents/{path...}", s.getContents)

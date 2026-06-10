@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	authpkg "github.com/aedatum/runway/internal/auth"
@@ -89,8 +90,14 @@ var staticPaths = map[string]bool{
 	"/login.html": true,
 }
 
+var badgeRe = regexp.MustCompile(`^/repos/[^/]+/[^/]+/actions/workflows/[^/]+/badge\.svg$`)
+
 func requiresAuth(path string) bool {
 	if path == "/api/health" || path == "/api/login" || path == "/api/logout" {
+		return false
+	}
+	// Webhooks authenticate via HMAC signature; badges are public by design.
+	if path == "/webhooks/github" || badgeRe.MatchString(path) {
 		return false
 	}
 	if strings.HasPrefix(path, "/login") || path == "/logout" {

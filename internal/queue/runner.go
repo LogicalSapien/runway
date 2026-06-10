@@ -9,7 +9,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/aedatum/runway/internal/validate"
@@ -61,6 +63,10 @@ func (r *Runner) Run(ctx context.Context) (exitCode int, err error) {
 	cmd := exec.CommandContext(ctx, "act", args...)
 	cmd.Dir = r.clonePath
 	cmd.Env = env
+	// On cancel, SIGTERM first so act tears down its containers; SIGKILL only
+	// if it has not exited within the grace period.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = 30 * time.Second
 
 	// CombinedOutput-style: both stdout and stderr feed the same pipe so the
 	// parser sees lifecycle events (stdout) and error messages (stderr) together.
@@ -109,8 +115,12 @@ func (r *Runner) Run(ctx context.Context) (exitCode int, err error) {
 
 // buildArgs constructs the act command-line arguments.
 func (r *Runner) buildArgs() []string {
+	event := r.qi.Event
+	if event == "" {
+		event = "workflow_dispatch"
+	}
 	args := []string{
-		"workflow_dispatch",
+		event,
 		"-W", ".github/workflows/" + r.qi.WorkflowFile,
 		// No -q: quiet mode also suppresses step stdout, leaving runs with
 		// lifecycle lines but no actual job output to debug failures with.
@@ -125,6 +135,12 @@ func (r *Runner) buildArgs() []string {
 		if _, err := os.Stat(r.varsFile); err == nil {
 			args = append(args, "--var-file", r.varsFile)
 		}
+	}
+
+	// Built-in artifact server: upload/download-artifact actions work and the
+	// files land under <artifacts_dir>/<runID> for the artifacts API to serve.
+	if dir := r.artifactsDir(); dir != "" {
+		args = append(args, "--artifact-server-path", dir)
 	}
 
 	// Forward workflow_dispatch inputs as act --input key=value flags.
@@ -211,6 +227,22 @@ func (r *Runner) platformMappings() []string {
 		}
 	}
 	return out
+}
+
+// artifactsDir returns the per-run artifact directory when the artifacts_dir
+// setting is configured ("" disables the act artifact server).
+func (r *Runner) artifactsDir() string {
+	var v string
+	_ = r.db.QueryRow(`SELECT value FROM settings WHERE key='artifacts_dir'`).Scan(&v)
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	dir := filepath.Join(v, fmt.Sprintf("run-%d", r.runID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return ""
+	}
+	return dir
 }
 
 // containerOptions reads the optional 'act_container_options' setting — extra

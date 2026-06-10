@@ -74,6 +74,7 @@ type QueueItem struct {
 	ClonePath    string // absolute path on disk; may be empty (engine will set it)
 	WorkflowFile string
 	Inputs       string // JSON blob or ""
+	Event        string // act trigger event (workflow_dispatch | push)
 }
 
 // dequeue marks up to n queued items as running and returns them.
@@ -98,7 +99,7 @@ func (e *Engine) dequeue(limit int) ([]QueueItem, error) {
 	}
 
 	rows, err := tx.Query(`
-		SELECT q.id, q.repo_id, q.workflow_file, q.branch, COALESCE(q.inputs,''),
+		SELECT q.id, q.repo_id, q.workflow_file, q.branch, COALESCE(q.inputs,''), q.event,
 		       r.name, r.owner, r.git_url,
 		       COALESCE(r.deploy_key,''), COALESCE(r.clone_path,'')
 		FROM queue q
@@ -114,7 +115,7 @@ func (e *Engine) dequeue(limit int) ([]QueueItem, error) {
 	for rows.Next() {
 		var qi QueueItem
 		if err := rows.Scan(
-			&qi.ID, &qi.RepoID, &qi.WorkflowFile, &qi.Branch, &qi.Inputs,
+			&qi.ID, &qi.RepoID, &qi.WorkflowFile, &qi.Branch, &qi.Inputs, &qi.Event,
 			&qi.RepoName, &qi.RepoOwner, &qi.GitURL,
 			&qi.DeployKey, &qi.ClonePath,
 		); err != nil {
@@ -170,7 +171,7 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 		VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		qi.RepoID, qi.RepoName,
 		workflowName(qi.WorkflowFile), qi.WorkflowFile,
-		"queue", qi.Branch, sha,
+		qi.Event, qi.Branch, sha,
 		"running", now, now,
 	)
 	if err != nil {
@@ -187,13 +188,21 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 	// stored secrets/variables into per-run temp files (deleted afterwards).
 	secretsFile, varsFile, cleanupFiles := e.buildRunFiles(qi, clonePath)
 	defer cleanupFiles()
+	runCtx, cancelRun := context.WithCancel(ctx)
+	registerRun(runID, cancelRun)
 	runner := NewRunner(e.db, qi, runID, clonePath, sha, secretsFile, varsFile)
-	exitCode, runErr := runner.Run(ctx)
+	exitCode, runErr := runner.Run(runCtx)
+	cancelled := runCtx.Err() != nil && ctx.Err() == nil
+	unregisterRun(runID)
+	cancelRun()
 
 	// 4. finish
 	status := "success"
 	if exitCode != 0 || runErr != nil {
 		status = "failure"
+	}
+	if cancelled {
+		status = "cancelled"
 	}
 	finishedAt := time.Now().Unix()
 	e.exec(
@@ -207,6 +216,7 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 
 	log.Printf("queue: finished run=%d repo=%s status=%s exit=%d",
 		runID, qi.RepoName, status, exitCode)
+	e.notify(qi, runID, status)
 }
 
 // envRefRe matches "environment: name" and the block form's "name: x" line in

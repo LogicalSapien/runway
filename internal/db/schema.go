@@ -43,6 +43,7 @@ func migrate(d *sql.DB) error {
 	// "duplicate column name" means the column already exists — not an error.
 	for _, stmt := range []string{
 		`ALTER TABLE queue ADD COLUMN run_id INTEGER`,
+		`ALTER TABLE queue ADD COLUMN event TEXT NOT NULL DEFAULT 'workflow_dispatch'`,
 	} {
 		if _, err := d.Exec(stmt); err != nil &&
 			!strings.Contains(err.Error(), "duplicate column name") {
@@ -159,6 +160,7 @@ CREATE TABLE IF NOT EXISTS queue (
     status        TEXT    NOT NULL DEFAULT 'queued',       -- queued/running/done/cancelled
     priority      INTEGER NOT NULL DEFAULT 0,              -- higher wins
     run_id        INTEGER,                                 -- runs.id once the engine starts it
+    event         TEXT    NOT NULL DEFAULT 'workflow_dispatch', -- act trigger event
     created_at    INTEGER NOT NULL,
     started_at    INTEGER,
     finished_at   INTEGER

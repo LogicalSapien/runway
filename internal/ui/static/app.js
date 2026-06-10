@@ -479,8 +479,12 @@ let _currentRunRepo = null; // { owner, name }
 // _pendingSel carries {jobID, step} from the URL so refresh restores position.
 let _pendingSel = null;
 
+let _currentRun = null;
+
 async function openRun(run, sel) {
   _pendingSel = sel || null;
+  _currentRun = run;
+  document.getElementById('cancel-run-btn').classList.toggle('hidden', run.status !== 'running');
   showRunDetail();
   document.getElementById('detail-title').textContent =
     `#${run.id} — ${run.workflow}`;
@@ -706,6 +710,25 @@ function escText(s) {
   d.textContent = String(s ?? '');
   return d.innerHTML;
 }
+
+document.getElementById('rerun-btn').addEventListener('click', async () => {
+  if (!_currentRun) return;
+  const repo = repoByID(_currentRun.repo_id);
+  if (!repo) return alert('Repo unknown for this run.');
+  const r = await apiFetch(`/repos/${repo.owner}/${repo.name}/actions/runs/${_currentRun.id}/rerun`, { method: 'POST' });
+  if (r.ok) { pushURL('/queue'); switchToTab('queue'); loadQueue(); }
+  else alert('Re-run failed.');
+});
+
+document.getElementById('cancel-run-btn').addEventListener('click', async () => {
+  if (!_currentRun) return;
+  const repo = repoByID(_currentRun.repo_id);
+  if (!repo) return;
+  if (!confirm('Cancel this running workflow?')) return;
+  const r = await apiFetch(`/repos/${repo.owner}/${repo.name}/actions/runs/${_currentRun.id}/cancel`, { method: 'POST' });
+  if (!r.ok && r.status !== 202) alert('Cancel failed (run may have already finished).');
+  setTimeout(() => openRunById(_currentRun.id), 1200);
+});
 
 document.getElementById('close-detail').addEventListener('click', () => {
   closeLogStream();
@@ -1409,6 +1432,10 @@ async function loadSettings() {
   if (s.docker_memory)   form.docker_memory.value   = s.docker_memory;
   if (s.docker_cpus)     form.docker_cpus.value     = s.docker_cpus;
   if (s.act_container_options) form.act_container_options.value = s.act_container_options;
+  if (s.notify_webhook_url) form.notify_webhook_url.value = s.notify_webhook_url;
+  if (s.notify_on)          form.notify_on.value = s.notify_on;
+  if (s.webhook_secret)     form.webhook_secret.value = s.webhook_secret;
+  if (s.artifacts_dir)      form.artifacts_dir.value = s.artifacts_dir;
 
   renderRLInfo();
 }
@@ -1427,6 +1454,10 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
     docker_memory:        form.docker_memory.value.trim(),
     docker_cpus:          form.docker_cpus.value.trim(),
     act_container_options: form.act_container_options.value.trim(),
+    notify_webhook_url: form.notify_webhook_url.value.trim(),
+    notify_on:          form.notify_on.value,
+    webhook_secret:     form.webhook_secret.value.trim(),
+    artifacts_dir:      form.artifacts_dir.value.trim(),
   };
 
   const resp = await apiFetch('/api/settings', {

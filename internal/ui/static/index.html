@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Runway</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=12">
+  <link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body>
   <nav>
@@ -58,6 +58,8 @@
       <div id="run-detail" class="detail hidden">
         <div class="detail-header">
           <button id="close-detail">&#x2190; Back</button>
+          <button id="rerun-btn" class="btn-sm">&#x21BB; Re-run</button>
+          <button id="cancel-run-btn" class="btn-danger btn-sm hidden">&#x25A0; Cancel</button>
           <div class="detail-meta">
             <h3 id="detail-title"></h3>
             <div id="detail-sub" class="detail-sub"></div>
@@ -254,6 +256,25 @@
           <textarea name="act_container_options" rows="3" placeholder="-v /home/ci/.ssh/deploy_key:/root/.ssh/id_ed25519:ro -v /etc/docker/certs.d:/etc/docker/certs.d:ro"></textarea>
           <span class="field-hint">Extra docker options for act job containers — volume mounts for SSH keys, registry certs, etc. Memory/CPU limits are appended automatically. act only accepts one <code>--container-options</code> flag so put everything here (not in <code>~/.actrc</code>).</span>
         </label>
+        <label>
+          Notification webhook URL
+          <input type="text" name="notify_webhook_url" placeholder="https://hooks.slack.com/services/...">
+          <span class="field-hint">POSTed JSON (Slack-compatible) when a run finishes. Leave blank to disable.</span>
+        </label>
+        <label>
+          Notify on
+          <select name="notify_on"><option value="failure">Failures only</option><option value="all">All runs</option></select>
+        </label>
+        <label>
+          GitHub webhook secret
+          <input type="password" name="webhook_secret" placeholder="shared secret for POST /webhooks/github" autocomplete="off">
+          <span class="field-hint">Enables push-triggered runs: add a GitHub webhook (push events, JSON) pointing at /webhooks/github with this secret.</span>
+        </label>
+        <label>
+          Artifacts directory
+          <input type="text" name="artifacts_dir" placeholder="e.g. /home/ci/runway-data/artifacts">
+          <span class="field-hint">Enables act&apos;s artifact server; files served at /api/runs/{id}/artifacts. Blank = disabled.</span>
+        </label>
         <div class="form-row">
           <button type="submit">Save Settings</button>
           <span id="settings-msg"></span>
@@ -393,6 +414,6 @@
     <button class="bnav-btn" id="bnav-more"><span class="bnav-icon">&#x22EF;</span><span class="bnav-label">More</span></button>
   </nav>
 
-  <script src="/app.js?v=12"></script>
+  <script src="/app.js?v=13"></script>
 </body>
 </html>
