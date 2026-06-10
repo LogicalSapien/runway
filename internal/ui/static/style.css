@@ -546,31 +546,99 @@ tr:hover td { background: var(--surface); cursor: pointer; }
 /* Hide admin section for viewers (JS adds .viewer-hidden when role=viewer) */
 .viewer-hidden { display: none !important; }
 
-/* ══════════════════════════════════════════════════════════════════════════ */
-/* MOBILE — ≤ 640px                                                            */
-/* ══════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 640px) {
-  html, body { font-size: 12px; }
+/* ── Mobile bottom navigation (desktop: hidden) ──────────────────────────── */
+#bottom-nav, .more-sheet, .more-backdrop { display: none; }
 
-  /* Nav: logo + tab row stack vertically, tabs wrap */
-  nav {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 10px 12px;
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* MOBILE — ≤ 768px: bottom nav + comfortable touch sizing                     */
+/* ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Larger, not smaller: mobile gets bigger type and touch targets */
+  html, body { font-size: 14px; }
+
+  /* Top bar: just the brand — tabs/user/logout move to the bottom nav + More */
+  nav { padding: 12px 16px; }
+  nav .tab-btn, #user-bar, #logout-btn, .nav-spacer { display: none; }
+  .logo { font-size: 17px; margin-right: auto; }
+  #rl-nav-badge { margin-left: auto; }
+
+  /* Content: leave room for the fixed bottom nav (+ iOS safe area) */
+  main { padding: 14px 12px calc(76px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Bottom nav — Material-style fixed bar */
+  #bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 300;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .logo { width: 100%; margin-right: 0; margin-bottom: 2px; }
-  .nav-spacer { display: none; }
-  #user-bar { font-size: 0.75rem; }
-  #logout-btn { margin-left: auto; }
-  .tab-btn { font-size: 11px; padding: 4px 8px; }
-  /* Rate-limit nav badge wraps to its own row */
-  #rl-nav-badge { order: 10; width: 100%; }
+  .bnav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    border-radius: 0;
+    color: var(--muted);
+    padding: 8px 0 10px;
+    font-size: 11px;
+  }
+  .bnav-btn .bnav-icon { font-size: 18px; line-height: 1.2; }
+  .bnav-btn.active { color: var(--accent); }
+  .bnav-btn.active .bnav-label { font-weight: 700; }
 
-  /* Main: tighter padding */
-  main { padding: 12px; }
+  /* More sheet — slides over the bottom nav */
+  .more-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 310;
+    background: rgba(0,0,0,0.5);
+  }
+  .more-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    z-index: 320;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .more-user {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 8px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .more-item {
+    background: none;
+    border: none;
+    text-align: left;
+    color: var(--text);
+    font-size: 15px;
+    padding: 14px 20px;
+  }
+  .more-item:active { background: var(--bg); }
 
-  /* Tables: horizontal scroll so columns don't crush */
+  /* Touch-friendly controls */
+  button { font-size: 13px; padding: 8px 14px; }
+  .btn-sm { font-size: 12px; padding: 5px 10px; }
+  input, select, textarea { font-size: 15px; padding: 9px 10px; }
+  .toolbar h2 { font-size: 17px; }
+  .toolbar h3 { font-size: 14px; }
+
+  /* Tables: horizontal scroll, roomier rows */
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { padding: 11px 10px !important; white-space: nowrap; }
 
   /* Run detail: stack jobs sidebar above steps panel */
   .detail-body {
@@ -580,11 +648,12 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   .jobs-sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
   }
-  .steps-list { max-height: 140px; }
-  .log-box    { min-height: 160px; font-size: 11px; }
+  .job-item, .step-item { padding: 11px 12px; }
+  .steps-list { max-height: 170px; }
+  .log-box    { min-height: 220px; font-size: 12px; }
 
   /* Settings: full width */
   #settings-form { max-width: 100%; }
@@ -607,8 +676,8 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   .change-pw-banner input,
   .change-pw-banner button { width: 100%; }
 
-  /* Modals: full-width on small screens */
-  .modal { width: 100%; max-width: 100vw; border-radius: 0; padding: 16px; margin: 0; align-self: flex-end; }
+  /* Modals: bottom sheets on small screens */
+  .modal { width: 100%; max-width: 100vw; border-radius: 14px 14px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); margin: 0; align-self: flex-end; }
   .modal-backdrop { align-items: flex-end; }
 }
 

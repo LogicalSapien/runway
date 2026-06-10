@@ -31,9 +31,12 @@ async function loadMe() {
 }
 
 function renderUserBar() {
+  if (!_currentUser) return;
+  const label = _currentUser.username + ' (' + _currentUser.role + ')';
   const el = document.getElementById('user-bar');
-  if (!el || !_currentUser) return;
-  el.textContent = _currentUser.username + ' (' + _currentUser.role + ')';
+  if (el) el.textContent = label;
+  const mu = document.getElementById('more-user');
+  if (mu) mu.textContent = 'Signed in as ' + label;
   // Hide admin-only UI elements for viewers
   if (_currentUser.role !== 'admin') {
     document.getElementById('admin-users-section')?.classList.add('viewer-hidden');
@@ -192,13 +195,42 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 function switchToTab(name) {
-  const btn = document.querySelector(`[data-tab="${name}"]`);
+  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
   if (!btn) return;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
+  // Mirror state onto the mobile bottom nav ("More" owns settings + users).
+  document.querySelectorAll('.bnav-btn').forEach(b => {
+    const active = b.id === 'bnav-more'
+      ? (name === 'settings' || name === 'users')
+      : b.dataset.tab === name;
+    b.classList.toggle('active', active);
+  });
 }
+
+// ── Mobile bottom nav + "More" sheet ──────────────────────────────────────────
+function openMoreSheet() {
+  document.getElementById('more-sheet')?.classList.remove('hidden');
+  document.getElementById('more-backdrop')?.classList.remove('hidden');
+}
+function closeMoreSheet() {
+  document.getElementById('more-sheet')?.classList.add('hidden');
+  document.getElementById('more-backdrop')?.classList.add('hidden');
+}
+
+document.querySelectorAll('.bnav-btn[data-tab], .more-item[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    closeMoreSheet();
+    pushURL(TAB_PATHS[btn.dataset.tab] ?? '/');
+    switchToTab(btn.dataset.tab);
+    TAB_LOADERS[btn.dataset.tab]?.();
+  });
+});
+document.getElementById('bnav-more')?.addEventListener('click', openMoreSheet);
+document.getElementById('more-backdrop')?.addEventListener('click', closeMoreSheet);
+document.getElementById('more-logout')?.addEventListener('click', doLogout);
 
 // ── URL router ────────────────────────────────────────────────────────────────
 // Paths imitate GitHub Actions so links read naturally and survive refresh:
