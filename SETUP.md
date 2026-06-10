@@ -21,7 +21,7 @@ covers what it does, what to prepare manually, and how to adapt it to your host.
 ## Quick install (systemd)
 
 ```bash
-git clone https://github.com/aedatum/runway.git
+git clone https://github.com/LogicalSapien/runway.git
 cd runway
 cp .env.example .env        # edit ADMIN_PASSWORD and paths
 bash scripts/install.sh
@@ -128,7 +128,7 @@ editing `.env` later has no effect unless you reset the database.
 ## Disaster recovery (clean host)
 
 ```bash
-git clone https://github.com/aedatum/runway.git
+git clone https://github.com/LogicalSapien/runway.git
 cd runway
 cp .env.example .env            # restore your settings
 mkdir -p ~/runway-data/repos    # or restore DATA_DIR from backup

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // getSettings handles GET /api/settings

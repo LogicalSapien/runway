@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // ── GitHub-compatible response shapes ────────────────────────────────────────

@@ -26,7 +26,7 @@ Runway is a lightweight wrapper around [act](https://github.com/nektos/act) (the
 Requirements: Linux or macOS, Go ≥ 1.22 (with cgo), `git`, [act](https://github.com/nektos/act), and a running Docker daemon.
 
 ```bash
-git clone https://github.com/aedatum/runway.git
+git clone https://github.com/LogicalSapien/runway.git
 cd runway
 cp .env.example .env          # optional — defaults work for a local try-out
 CGO_ENABLED=1 go build -o runway .

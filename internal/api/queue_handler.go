@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // listQueue handles GET /api/queue

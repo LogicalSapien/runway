@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/aedatum/runway/internal/middleware"
-	"github.com/aedatum/runway/internal/secrets"
-	"github.com/aedatum/runway/internal/ui"
+	"github.com/LogicalSapien/runway/internal/middleware"
+	"github.com/LogicalSapien/runway/internal/secrets"
+	"github.com/LogicalSapien/runway/internal/ui"
 )
 
 // Server holds shared state (DB handle, secrets cipher) and the multiplexer.

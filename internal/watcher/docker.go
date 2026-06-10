@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 type DockerWatcher struct {

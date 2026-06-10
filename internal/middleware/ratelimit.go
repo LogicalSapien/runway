@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	authpkg "github.com/aedatum/runway/internal/auth"
+	authpkg "github.com/LogicalSapien/runway/internal/auth"
 )
 
 // -----------------------------------------------------------------------

@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/crypto/nacl/box"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/middleware"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/middleware"
 )
 
 // adminRequest builds a request whose context carries an admin user (the tests

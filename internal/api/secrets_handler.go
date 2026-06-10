@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"regexp"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // Secret/variable names follow GitHub's rules: alphanumeric + underscore, no

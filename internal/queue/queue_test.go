@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 func openTestDB(t *testing.T) *sql.DB {

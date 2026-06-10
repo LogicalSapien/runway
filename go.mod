@@ -1,4 +1,4 @@
-module github.com/aedatum/runway
+module github.com/LogicalSapien/runway
 
 go 1.25.0
 

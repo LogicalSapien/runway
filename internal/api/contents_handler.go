@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 const maxBlobSize = 1 << 20 // 1 MiB — the UI is a quick checkout inspector, not an editor

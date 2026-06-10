@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	authpkg "github.com/aedatum/runway/internal/auth"
-	dbpkg "github.com/aedatum/runway/internal/db"
+	authpkg "github.com/LogicalSapien/runway/internal/auth"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // contextKey is the type used for context values set by this middleware.

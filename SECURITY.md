@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately via
-[GitHub Security Advisories](https://github.com/aedatum/runway/security/advisories/new)
+[GitHub Security Advisories](https://github.com/LogicalSapien/runway/security/advisories/new)
 ("Report a vulnerability" on the repo's Security tab). Do not open a public
 issue for security problems.
 

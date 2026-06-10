@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aedatum/runway/internal/validate"
+	"github.com/LogicalSapien/runway/internal/validate"
 )
 
 // CloneOrPull ensures the repo is present on disk and up-to-date, then returns

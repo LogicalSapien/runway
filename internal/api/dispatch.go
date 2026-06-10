@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/validate"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/validate"
 )
 
 // dispatchBody is the JSON body accepted by the workflow dispatch endpoint.

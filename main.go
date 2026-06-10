@@ -10,16 +10,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aedatum/runway/config"
-	"github.com/aedatum/runway/internal/api"
-	"github.com/aedatum/runway/internal/auth"
-	"github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/middleware"
-	"github.com/aedatum/runway/internal/poller"
-	"github.com/aedatum/runway/internal/queue"
-	"github.com/aedatum/runway/internal/retention"
-	"github.com/aedatum/runway/internal/secrets"
-	"github.com/aedatum/runway/internal/watcher"
+	"github.com/LogicalSapien/runway/config"
+	"github.com/LogicalSapien/runway/internal/api"
+	"github.com/LogicalSapien/runway/internal/auth"
+	"github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/middleware"
+	"github.com/LogicalSapien/runway/internal/poller"
+	"github.com/LogicalSapien/runway/internal/queue"
+	"github.com/LogicalSapien/runway/internal/retention"
+	"github.com/LogicalSapien/runway/internal/secrets"
+	"github.com/LogicalSapien/runway/internal/watcher"
 )
 
 func main() {

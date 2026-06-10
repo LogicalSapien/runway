@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/secrets"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/secrets"
 )
 
 func newTestServer(t *testing.T) (*Server, *sql.DB) {

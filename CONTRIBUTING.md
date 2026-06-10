@@ -9,7 +9,7 @@ Docker, and [act](https://github.com/nektos/act) if you want to exercise real
 workflow runs.
 
 ```bash
-git clone https://github.com/aedatum/runway.git
+git clone https://github.com/LogicalSapien/runway.git
 cd runway
 CGO_ENABLED=1 go build -o runway .
 RUNWAY_INSECURE_COOKIES=true ./runway   # plain-HTTP cookies for local dev

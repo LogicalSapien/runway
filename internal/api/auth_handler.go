@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	authpkg "github.com/aedatum/runway/internal/auth"
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/middleware"
+	authpkg "github.com/LogicalSapien/runway/internal/auth"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/middleware"
 )
 
 const sessionDuration = 30 * 24 * time.Hour

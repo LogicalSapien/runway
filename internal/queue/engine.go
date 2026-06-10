@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/secrets"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/secrets"
 )
 
 // Engine is a background goroutine that drains the queue table, respecting a

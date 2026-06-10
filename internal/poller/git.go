@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // GitPoller periodically runs git pull on all registered repos so that

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 )
 
 // getLogs handles GET /api/steps/{id}/logs

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	dbpkg "github.com/aedatum/runway/internal/db"
-	"github.com/aedatum/runway/internal/queue"
-	"github.com/aedatum/runway/internal/validate"
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/queue"
+	"github.com/LogicalSapien/runway/internal/validate"
 )
 
 // pushTriggerRe detects an `on: push` trigger in workflow YAML (plain, list,
