@@ -298,6 +298,12 @@ async function render(path) {
     if (seg.length === 2 || (seg.length === 3 && c === 'actions')) {
       switchToTab('repos'); openRepoByOwnerName(owner, repo); return;
     }
+    // /{owner}/{repo}/settings/secrets — secrets & variables pane
+    if (c === 'settings' && seg.length >= 3) {
+      switchToTab('repos');
+      openRepoByOwnerName(owner, repo, { pane: 'secrets' });
+      return;
+    }
     // /{owner}/{repo}/tree|blob/{branch}/{path...} — file browser deep links
     if ((c === 'tree' || c === 'blob') && seg.length >= 4) {
       switchToTab('repos');
@@ -833,6 +839,8 @@ async function openRepo(repo, view) {
     showRepoPane('files');
     if (view.mode === 'blob') loadBlob(repo, view.path || '');
     else loadFiles(repo, view.path || '');
+  } else if (view?.pane === 'secrets') {
+    showRepoPane('secrets');
   } else {
     showRepoPane('overview');
   }
@@ -904,10 +912,10 @@ async function loadRepoRuns(repo) {
 // ── Repo detail panes (Overview | Files) + sync status + file browser ─────────
 
 function showRepoPane(pane) {
-  document.getElementById('repo-tab-overview').classList.toggle('active', pane === 'overview');
-  document.getElementById('repo-tab-files').classList.toggle('active', pane === 'files');
-  document.getElementById('repo-overview').classList.toggle('hidden', pane !== 'overview');
-  document.getElementById('repo-files').classList.toggle('hidden', pane !== 'files');
+  for (const name of ['overview', 'files', 'secrets']) {
+    document.getElementById('repo-tab-' + name).classList.toggle('active', pane === name);
+    document.getElementById('repo-' + name).classList.toggle('hidden', pane !== name);
+  }
 }
 
 document.getElementById('repo-tab-overview').addEventListener('click', () => {
@@ -921,6 +929,13 @@ document.getElementById('repo-tab-files').addEventListener('click', () => {
   pushURL(`/${_currentRepo.owner}/${_currentRepo.name}/tree/${_currentRepo.default_branch}`);
   showRepoPane('files');
   loadFiles(_currentRepo, '');
+});
+
+document.getElementById('repo-tab-secrets').addEventListener('click', () => {
+  if (!_currentRepo) return;
+  pushURL(`/${_currentRepo.owner}/${_currentRepo.name}/settings/secrets`);
+  showRepoPane('secrets');
+  loadScopes(_currentRepo);
 });
 
 async function loadGitStatus(repo) {

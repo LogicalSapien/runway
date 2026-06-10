@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Runway</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=11">
+  <link rel="stylesheet" href="/style.css?v=12">
 </head>
 <body>
   <nav>
@@ -126,6 +126,7 @@
         <div class="repo-tabs">
           <button id="repo-tab-overview" class="repo-tab active">Overview</button>
           <button id="repo-tab-files" class="repo-tab">Files</button>
+          <button id="repo-tab-secrets" class="repo-tab">Secrets &amp; variables</button>
         </div>
 
         <!-- ── Files pane (basic checkout browser) ─────────────────────── -->
@@ -140,6 +141,60 @@
           <pre id="file-view" class="file-view hidden"></pre>
         </div>
 
+        <!-- ── Secrets & variables pane ────────────────────────────────── -->
+        <div id="repo-secrets" class="hidden">
+          <div class="toolbar" style="margin-top:14px">
+            <label class="scope-label">Scope
+              <select id="env-scope" title="Scope"></select>
+            </label>
+            <button id="add-env-btn" class="btn-sm">+ New environment</button>
+            <button id="delete-env-btn" class="btn-danger btn-sm hidden">Delete environment</button>
+          </div>
+          <p class="field-hint">Environment-scoped values apply when a workflow references that environment and override repository-level values of the same name.</p>
+
+          <div class="card">
+            <h3>Secrets</h3>
+            <p class="field-hint">Available to workflows as <code>${{ secrets.NAME }}</code>. Encrypted at rest; values are write-only and never shown again.</p>
+            <table id="secrets-table">
+              <thead><tr><th>Name</th><th>Updated</th><th style="width:90px"></th></tr></thead>
+              <tbody id="secrets-body"></tbody>
+            </table>
+            <form id="add-secret-form" class="kv-form">
+              <label>Name
+                <input type="text" name="name" placeholder="e.g. DOPPLER_TOKEN" required pattern="[A-Za-z_][A-Za-z0-9_]*" autocomplete="off" spellcheck="false">
+              </label>
+              <label>Value
+                <textarea name="value" rows="3" placeholder="Secret value (multi-line supported — e.g. PEM keys)" required autocomplete="off" spellcheck="false"></textarea>
+              </label>
+              <div class="form-row">
+                <button type="submit">Add secret</button>
+                <span id="add-secret-msg"></span>
+              </div>
+            </form>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <h3>Variables</h3>
+            <p class="field-hint">Non-secret configuration, available as <code>${{ vars.NAME }}</code>. Values stay visible and editable.</p>
+            <table id="vars-table">
+              <thead><tr><th>Name</th><th>Value</th><th style="width:90px"></th></tr></thead>
+              <tbody id="vars-body"></tbody>
+            </table>
+            <form id="add-var-form" class="kv-form">
+              <label>Name
+                <input type="text" name="name" placeholder="e.g. REGION" required pattern="[A-Za-z_][A-Za-z0-9_]*" autocomplete="off" spellcheck="false">
+              </label>
+              <label>Value
+                <input type="text" name="value" placeholder="Value" required spellcheck="false">
+              </label>
+              <div class="form-row">
+                <button type="submit">Add variable</button>
+                <span id="add-var-msg"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <div id="repo-overview">
         <div class="toolbar" style="margin-top:20px">
           <h3>Workflows</h3>
@@ -151,40 +206,6 @@
           </thead>
           <tbody id="workflows-body"></tbody>
         </table>
-        <div class="toolbar" style="margin-top:20px">
-          <h3>Secrets &amp; Variables</h3>
-          <select id="env-scope" title="Scope"></select>
-          <button id="add-env-btn" class="btn-sm">+ Environment</button>
-          <button id="delete-env-btn" class="btn-danger btn-sm hidden">Delete environment</button>
-        </div>
-        <div class="card" id="secrets-card">
-          <h3>Secrets</h3>
-          <p class="field-hint">Available to workflows as <code>${{ secrets.NAME }}</code>. Encrypted at rest; values are write-only. Environment-scoped secrets override repository ones when a workflow uses that environment.</p>
-          <table id="secrets-table">
-            <thead><tr><th>Name</th><th>Updated</th><th></th></tr></thead>
-            <tbody id="secrets-body"></tbody>
-          </table>
-          <form id="add-secret-form" class="inline-form" style="margin-top:10px">
-            <input type="text" name="name" placeholder="SECRET_NAME" required pattern="[A-Za-z_][A-Za-z0-9_]*">
-            <input type="password" name="value" placeholder="value" required autocomplete="off">
-            <button type="submit">Save secret</button>
-            <span id="add-secret-msg"></span>
-          </form>
-
-          <h3 style="margin-top:18px">Variables</h3>
-          <p class="field-hint">Non-secret configuration, available as <code>${{ vars.NAME }}</code>.</p>
-          <table id="vars-table">
-            <thead><tr><th>Name</th><th>Value</th><th></th></tr></thead>
-            <tbody id="vars-body"></tbody>
-          </table>
-          <form id="add-var-form" class="inline-form" style="margin-top:10px">
-            <input type="text" name="name" placeholder="VAR_NAME" required pattern="[A-Za-z_][A-Za-z0-9_]*">
-            <input type="text" name="value" placeholder="value" required>
-            <button type="submit">Save variable</button>
-            <span id="add-var-msg"></span>
-          </form>
-        </div>
-
         <div class="toolbar" style="margin-top:20px">
           <h3>Recent Runs</h3>
         </div>
@@ -372,6 +393,6 @@
     <button class="bnav-btn" id="bnav-more"><span class="bnav-icon">&#x22EF;</span><span class="bnav-label">More</span></button>
   </nav>
 
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

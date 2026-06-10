@@ -569,6 +569,31 @@ tr:hover td { background: var(--surface); cursor: pointer; }
 .sync-badge.sync-behind  { background: rgba(245,158,11,0.18); color: var(--warning); }
 .sync-badge.sync-unknown { background: rgba(100,116,139,0.18); color: var(--muted); }
 
+/* Secrets & variables forms — labeled fields, mono inputs, generous spacing */
+.kv-form { margin-top: 14px; max-width: 560px; }
+.kv-form label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.kv-form input, .kv-form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.kv-form input:focus, .kv-form textarea:focus { border-color: var(--accent); outline: none; }
+.kv-form .form-row { display: flex; align-items: center; gap: 10px; }
+.scope-label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.scope-label select { padding: 5px 8px; }
+
 .files-crumb { font-size: 13px; }
 .files-crumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
 .files-crumb a:hover { text-decoration: underline; }
