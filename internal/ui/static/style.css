@@ -604,18 +604,18 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   user-select: none;
 }
 
-/* Scroll-to-top button for long logs (steps-panel is the positioning context) */
-.steps-panel { position: relative; }
+/* Scroll-to-top button for long logs — the page scrolls (the log box grows
+   with its content), so the button floats fixed at the viewport edge. */
 .log-top-btn {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 10;
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 250;
   background: var(--surface);
   border: 1px solid var(--accent);
   color: var(--accent);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   font-size: 12px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
@@ -638,6 +638,9 @@ tr:hover td { background: var(--surface); cursor: pointer; }
 
   /* Content: leave room for the fixed bottom nav (+ iOS safe area) */
   main { padding: 14px 12px calc(76px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Keep the log scroll-top button above the bottom nav */
+  .log-top-btn { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
 
   /* Bottom nav — Material-style fixed bar */
   #bottom-nav {

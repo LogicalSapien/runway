@@ -677,15 +677,16 @@ function closeLogStream() {
   if (logStream) { logStream.close(); logStream = null; }
 }
 
-// Scroll-to-top button for long logs: appears once the log box has scrolled.
+// Scroll-to-top button for long logs. The log box grows with its content and
+// the PAGE scrolls, so this watches window scroll while a run detail is open.
 (function wireLogTopButton() {
-  const logBox = document.getElementById('log-output');
   const btn = document.getElementById('log-top-btn');
-  if (!logBox || !btn) return;
-  logBox.addEventListener('scroll', () => {
-    btn.classList.toggle('hidden', logBox.scrollTop < 300);
-  });
-  btn.addEventListener('click', () => logBox.scrollTo({ top: 0, behavior: 'smooth' }));
+  if (!btn) return;
+  window.addEventListener('scroll', () => {
+    const detailOpen = !document.getElementById('run-detail').classList.contains('hidden');
+    btn.classList.toggle('hidden', !(detailOpen && window.scrollY > 400));
+  }, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 })();
 
 // ── Helpers shared with the outer and inner openRun ───────────────────────────
