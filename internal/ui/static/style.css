@@ -594,6 +594,24 @@ tr:hover td { background: var(--surface); cursor: pointer; }
 .scope-label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
 .scope-label select { padding: 5px 8px; }
 
+.env-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.env-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.env-chip.active { border-color: var(--accent); background: rgba(99,102,241,0.14); color: var(--accent); }
+.env-chip .chip-x { color: var(--muted); font-size: 11px; padding: 0 2px; }
+.env-chip .chip-x:hover { color: var(--failure); }
+.env-chip.chip-new { border-style: dashed; color: var(--muted); }
+
 .files-crumb { font-size: 13px; }
 .files-crumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
 .files-crumb a:hover { text-decoration: underline; }

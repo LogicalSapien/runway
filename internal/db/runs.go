@@ -62,6 +62,7 @@ type ListRunsFilter struct {
 	Repo     string // filter by repo name
 	Workflow string // filter by workflow name
 	Status   string // filter by status
+	Since    int64  // only runs created at/after this unix timestamp
 	Limit    int
 	Offset   int    // 0 → default of 50
 }
@@ -90,6 +91,10 @@ func ListRuns(db *sql.DB, f ListRunsFilter) ([]Run, error) {
 	if f.Status != "" {
 		q += " AND status=?"
 		args = append(args, f.Status)
+	}
+	if f.Since > 0 {
+		q += " AND created_at >= ?"
+		args = append(args, f.Since)
 	}
 	q += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, f.Offset)
@@ -135,4 +140,29 @@ func UpdateRunStatus(db *sql.DB, id int64, status string) error {
 		status, status, now, id,
 	)
 	return err
+}
+
+// CountRuns returns the total number of runs matching f (ignoring limit/offset).
+func CountRuns(db *sql.DB, f ListRunsFilter) (int, error) {
+	q := `SELECT COUNT(*) FROM runs WHERE 1=1`
+	args := []any{}
+	if f.Repo != "" {
+		q += " AND repo=?"
+		args = append(args, f.Repo)
+	}
+	if f.Workflow != "" {
+		q += " AND workflow=?"
+		args = append(args, f.Workflow)
+	}
+	if f.Status != "" {
+		q += " AND status=?"
+		args = append(args, f.Status)
+	}
+	if f.Since > 0 {
+		q += " AND created_at >= ?"
+		args = append(args, f.Since)
+	}
+	var n int
+	err := db.QueryRow(q, args...).Scan(&n)
+	return n, err
 }

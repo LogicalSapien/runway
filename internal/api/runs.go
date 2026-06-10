@@ -154,10 +154,12 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	if offset < 0 {
 		offset = 0
 	}
+	since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
 	filter := dbpkg.ListRunsFilter{
 		Repo:     r.URL.Query().Get("repo"),
 		Workflow: r.URL.Query().Get("workflow"),
 		Status:   r.URL.Query().Get("status"),
+		Since:    since,
 		Limit:    limit,
 		Offset:   offset,
 	}
@@ -168,6 +170,9 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	}
 	if runs == nil {
 		runs = []dbpkg.Run{}
+	}
+	if total, err := dbpkg.CountRuns(s.db, filter); err == nil {
+		w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	}
 	writeJSON(w, runs)
 }

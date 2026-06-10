@@ -253,6 +253,15 @@ async function getRepos() {
   if (_repos) return _repos;
   const r = await apiFetch('/api/repos');
   _repos = r.ok ? await r.json() : [];
+  const sel = document.getElementById('filter-repo');
+  if (sel && sel.options.length <= 1) {
+    for (const rp of _repos) {
+      const o = document.createElement('option');
+      o.value = rp.name;
+      o.textContent = rp.owner + '/' + rp.name;
+      sel.appendChild(o);
+    }
+  }
   return _repos;
 }
 function repoByID(id) { return (_repos || []).find(x => x.id === id); }
@@ -368,12 +377,31 @@ document.getElementById('logout-btn')?.addEventListener('click', doLogout);
 const RUNS_PAGE = 50;
 let _runsOffset = 0;
 
+function runsSince() {
+  const v = document.getElementById('filter-time').value;
+  const day = 86400;
+  const now = Math.floor(Date.now() / 1000);
+  if (v === 'day') return now - day;
+  if (v === 'week') return now - 7 * day;
+  if (v === 'month') return now - 30 * day;
+  return 0;
+}
+
 async function loadRuns(append) {
   document.getElementById('runs-filter-title').classList.add('hidden');
   document.getElementById('clear-filter').classList.add('hidden');
   if (!append) _runsOffset = 0;
-  const resp = await apiFetch(`/api/runs?limit=${RUNS_PAGE}&offset=${_runsOffset}`);
+  const params = new URLSearchParams({ limit: RUNS_PAGE, offset: _runsOffset });
+  const repoF = document.getElementById('filter-repo').value;
+  const statusF = document.getElementById('filter-status').value;
+  if (repoF) params.set('repo', repoF);
+  if (statusF) params.set('status', statusF);
+  const since = runsSince();
+  if (since) params.set('since', since);
+  const resp = await apiFetch(`/api/runs?${params}`);
   const runs = resp.ok ? await resp.json() : [];
+  const total = resp.headers.get('X-Total-Count');
+  document.getElementById('runs-total').textContent = total !== null ? `${total} runs` : '';
   renderRunsTable(runs, document.getElementById('runs-body'), append);
   _runsOffset += runs.length;
   document.getElementById('load-more-runs').classList.toggle('hidden', runs.length < RUNS_PAGE);
@@ -745,6 +773,9 @@ document.getElementById('close-detail').addEventListener('click', () => {
 
 document.getElementById('refresh-runs').addEventListener('click', () => { pushURL('/'); loadRuns(); });
 document.getElementById('load-more-runs').addEventListener('click', () => loadRuns(true));
+for (const id of ['filter-repo', 'filter-status', 'filter-time']) {
+  document.getElementById(id).addEventListener('change', () => loadRuns());
+}
 document.querySelector('nav .logo').style.cursor = 'pointer';
 document.querySelector('nav .logo').addEventListener('click', () => {
   pushURL('/');
@@ -1128,22 +1159,52 @@ function scopePath(repo, kind, name) {
 }
 
 async function loadScopes(repo) {
-  const sel = document.getElementById('env-scope');
+  const wrap = document.getElementById('env-chips');
   const resp = await apiFetch(`/repos/${repo.owner}/${repo.name}/environments`);
   const envs = resp.ok ? (await resp.json()).environments || [] : [];
-  sel.innerHTML = '';
-  const optRepo = document.createElement('option');
-  optRepo.value = '';
-  optRepo.textContent = 'Repository';
-  sel.appendChild(optRepo);
+  wrap.innerHTML = '';
+
+  const chip = (label, scope) => {
+    const el = document.createElement('span');
+    el.className = 'env-chip' + (scope === _currentScope ? ' active' : '');
+    el.textContent = label;
+    el.addEventListener('click', () => {
+      _currentScope = scope;
+      loadScopes(repo);
+    });
+    return el;
+  };
+
+  wrap.appendChild(chip('Repository', ''));
   for (const e of envs) {
-    const o = document.createElement('option');
-    o.value = e.name;
-    o.textContent = 'env: ' + e.name;
-    sel.appendChild(o);
+    const el = chip(e.name, e.name);
+    const x = document.createElement('span');
+    x.className = 'chip-x';
+    x.textContent = '✕';
+    x.title = 'Delete environment';
+    x.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Delete environment "${e.name}" and all its secrets/variables?`)) return;
+      await apiFetch(`/repos/${repo.owner}/${repo.name}/environments/${encodeURIComponent(e.name)}`, { method: 'DELETE' });
+      if (_currentScope === e.name) _currentScope = '';
+      loadScopes(repo);
+    });
+    el.appendChild(x);
+    wrap.appendChild(el);
   }
-  sel.value = _currentScope;
-  document.getElementById('delete-env-btn').classList.toggle('hidden', !_currentScope);
+
+  const add = document.createElement('span');
+  add.className = 'env-chip chip-new';
+  add.textContent = '+ New environment';
+  add.addEventListener('click', async () => {
+    const name = prompt('Environment name (e.g. production, staging):');
+    if (!name) return;
+    const r = await apiFetch(`/repos/${repo.owner}/${repo.name}/environments/${encodeURIComponent(name)}`, { method: 'PUT' });
+    if (r.ok) { _currentScope = name; loadScopes(repo); }
+    else alert('Failed to create environment.');
+  });
+  wrap.appendChild(add);
+
   loadSecretsAndVars(repo);
 }
 
@@ -1205,29 +1266,6 @@ async function loadSecretsAndVars(repo) {
     vBody.appendChild(tr);
   }
 }
-
-document.getElementById('env-scope').addEventListener('change', (e) => {
-  _currentScope = e.target.value;
-  document.getElementById('delete-env-btn').classList.toggle('hidden', !_currentScope);
-  if (_currentRepo) loadSecretsAndVars(_currentRepo);
-});
-
-document.getElementById('add-env-btn').addEventListener('click', async () => {
-  if (!_currentRepo) return;
-  const name = prompt('Environment name (e.g. production, staging):');
-  if (!name) return;
-  const r = await apiFetch(`/repos/${_currentRepo.owner}/${_currentRepo.name}/environments/${encodeURIComponent(name)}`, { method: 'PUT' });
-  if (r.ok) { _currentScope = name; loadScopes(_currentRepo); }
-  else alert('Failed to create environment.');
-});
-
-document.getElementById('delete-env-btn').addEventListener('click', async () => {
-  if (!_currentRepo || !_currentScope) return;
-  if (!confirm(`Delete environment "${_currentScope}" and all its secrets/variables?`)) return;
-  const r = await apiFetch(`/repos/${_currentRepo.owner}/${_currentRepo.name}/environments/${encodeURIComponent(_currentScope)}`, { method: 'DELETE' });
-  if (r.ok || r.status === 204) { _currentScope = ''; loadScopes(_currentRepo); }
-  else alert('Failed to delete environment.');
-});
 
 document.getElementById('add-secret-form').addEventListener('submit', async (e) => {
   e.preventDefault();
