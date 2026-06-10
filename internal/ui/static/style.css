@@ -569,11 +569,15 @@ tr:hover td { background: var(--surface); cursor: pointer; }
   #bottom-nav {
     display: flex;
     position: fixed;
+    /* top:auto overrides the generic `nav { position:sticky; top:0 }` rule —
+       without it the bar stretches from top:0 to bottom:0 over the page. */
+    top: auto;
     bottom: 0; left: 0; right: 0;
     z-index: 300;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    gap: 0;
   }
   .bnav-btn {
     flex: 1;
