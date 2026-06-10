@@ -1,5 +1,8 @@
 # Runway
 
+[![CI](https://github.com/LogicalSapien/runway/actions/workflows/ci.yml/badge.svg)](https://github.com/LogicalSapien/runway/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Self-hosted CI server that runs your GitHub Actions workflows on your own hardware — with a GitHub-compatible API and a real-time web UI.**
 
 Runway is a lightweight wrapper around [act](https://github.com/nektos/act) (the GitHub Actions local runner). You keep writing standard `.github/workflows/*.yml` files; Runway gives you the missing server side: a dispatch API shaped like GitHub's, a run queue with concurrency control, live log streaming, run history, and user management — all in a single Go binary backed by SQLite.
