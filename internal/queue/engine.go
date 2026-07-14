@@ -155,6 +155,7 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 	clonePath, sha, err := CloneOrPull(qi, e.reposDir)
 	if err != nil {
 		log.Printf("queue: git error repo=%s: %v", qi.RepoName, err)
+		e.recordFailedRun(qi, "git error: "+err.Error())
 		e.failQueueItem(qi.ID, "git error: "+err.Error())
 		return
 	}
@@ -303,15 +304,53 @@ func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, var
 	return secretsFile, varsFile, cleanup
 }
 
-// failQueueItem marks a queue item as done with an error (no run created / run
+// failQueueItem marks a queue item as failed (no run reached act, or the run
 // already marked failed upstream).
 func (e *Engine) failQueueItem(id int64, reason string) {
 	now := time.Now().Unix()
+	// 'failed', not 'done': callers of the queue API poll status to learn the
+	// outcome — reporting a dropped item as done hid real failures (dispatches
+	// that "completed in 1s" with run_id NULL and nothing in the Runs tab).
 	e.exec(
-		`UPDATE queue SET status='done', finished_at=? WHERE id=?`,
+		`UPDATE queue SET status='failed', finished_at=? WHERE id=?`,
 		now, id,
 	)
 	log.Printf("queue: item %d failed: %s", id, reason)
+}
+
+// recordFailedRun inserts a failure run (plus a synthetic job/step/log line
+// carrying the reason) for a queue item that never reached act, so the
+// failure shows up in the Runs UI instead of vanishing.
+func (e *Engine) recordFailedRun(qi QueueItem, reason string) {
+	now := time.Now().Unix()
+	res, err := e.db.Exec(`
+		INSERT INTO runs(repo_id, repo, workflow, workflow_file, trigger, branch, commit_sha, status, started_at, finished_at, created_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		qi.RepoID, qi.RepoName,
+		workflowName(qi.WorkflowFile), qi.WorkflowFile,
+		qi.Event, qi.Branch, "",
+		"failure", now, now, now,
+	)
+	if err != nil {
+		log.Printf("queue: insert failed-run repo=%s: %v", qi.RepoName, err)
+		return
+	}
+	runID, _ := res.LastInsertId()
+	e.exec(`UPDATE queue SET run_id=? WHERE id=?`, runID, qi.ID)
+
+	jr, err := e.db.Exec(`INSERT INTO jobs(run_id, name, status) VALUES(?,?,?)`, runID, "setup", "failure")
+	if err != nil {
+		return
+	}
+	jobID, _ := jr.LastInsertId()
+	sr, err := e.db.Exec(`INSERT INTO steps(job_id, run_id, name, status, started_at) VALUES(?,?,?,?,?)`,
+		jobID, runID, "prepare workspace", "failure", now)
+	if err != nil {
+		return
+	}
+	stepID, _ := sr.LastInsertId()
+	e.exec(`INSERT INTO logs(step_id, run_id, ts, line_no, text) VALUES(?,?,?,?,?)`,
+		stepID, runID, now, 1, reason)
 }
 
 // exec runs a fire-and-forget statement, logging instead of returning errors —

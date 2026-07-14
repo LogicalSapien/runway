@@ -142,6 +142,7 @@ const STATUS_ICONS = {
   failure:  '&#x2716;',  // X
   skipped:  '&#x23E9;',  // fast-forward
   cancelled:'&#x23F9;',  // stop
+  failed:   '&#x2716;',  // X — queue item that never reached act (git/db error)
 };
 
 function statusIcon(status) {

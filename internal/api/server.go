@@ -125,6 +125,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET    /api/repos/{id}/workflows", s.listRepoWorkflows)
 	s.mux.HandleFunc("GET    /api/repos/{id}/gitstatus", s.getGitStatus)
 	s.mux.HandleFunc("POST   /api/repos", middleware.RequireAdmin(s.db, s.createRepo))
+	s.mux.HandleFunc("PATCH  /api/repos/{id}", middleware.RequireAdmin(s.db, s.patchRepo))
 	s.mux.HandleFunc("DELETE /api/repos/{id}", middleware.RequireAdmin(s.db, s.deleteRepo))
 	s.mux.HandleFunc("POST   /api/repos/{id}/sync", middleware.RequireAdmin(s.db, s.syncRepo))
 
