@@ -214,3 +214,58 @@ func yamlNameField(path string) string {
 	}
 	return ""
 }
+
+// patchRepoRequest is the JSON body for PATCH /api/repos/{id}. All fields are
+// optional; only supplied ones change.
+type patchRepoRequest struct {
+	GitURL        *string `json:"git_url"`
+	DefaultBranch *string `json:"default_branch"`
+	DeployKey     *string `json:"deploy_key"` // "" clears the key (fall back to system SSH)
+}
+
+// patchRepo handles PATCH /api/repos/{id} — fix a repo's remote settings in
+// place. DELETE + re-create is not an alternative: deletes cascade to the
+// repo's secrets, variables and run history.
+func (s *Server) patchRepo(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req patchRepoRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	repo, err := dbpkg.GetRepo(s.db, id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if repo == nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if req.GitURL != nil && *req.GitURL != "" && *req.GitURL != repo.GitURL {
+		repo.GitURL = *req.GitURL
+		// The existing checkout still has the old URL as its origin; drop the
+		// clone path so the next run clones fresh from the new remote.
+		repo.ClonePath = nil
+	}
+	if req.DefaultBranch != nil && *req.DefaultBranch != "" {
+		repo.DefaultBranch = *req.DefaultBranch
+	}
+	if req.DeployKey != nil {
+		if *req.DeployKey == "" {
+			repo.DeployKey = nil
+		} else {
+			repo.DeployKey = req.DeployKey
+		}
+	}
+	if err := dbpkg.UpdateRepo(s.db, *repo); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	repo.DeployKey = nil // never echo the private key
+	writeJSON(w, repo)
+}
