@@ -31,8 +31,11 @@ var (
 	addMaskRe = regexp.MustCompile(`::add-mask::(.*)$`)
 	// act logs every GITHUB_ENV / GITHUB_OUTPUT write as
 	// "⚙  ::set-env:: NAME=value" / "::set-output:: name=value".
-	setEnvRe   = regexp.MustCompile(`(::set-(?:env|output)::\s*)([A-Za-z_][A-Za-z0-9_-]*)=(.*)$`)
-	secretName = regexp.MustCompile(`(?i)(secret|token|passw|private|api_?key|access_?key|credential|dsn|database_url|db_url|cookie|_pem|auth)`)
+	setEnvRe = regexp.MustCompile(`(::set-(?:env|output)::\s*)([A-Za-z_][A-Za-z0-9_-]*)=(.*)$`)
+	// strongName always marks a secret; weakName does unless publicName also
+	// matches (R2_ACCESS_KEY_ID, BETTER_AUTH_URL, SSH_PUBLIC_KEY ...).
+	strongName = regexp.MustCompile(`(?i)(secret|token|pass(w|$|_)|private|credential|dsn|database_url|db_url|cookie|jwt|signing)`)
+	weakName   = regexp.MustCompile(`(?i)(api_?key|access_?key|_pem|auth|_key$|^key$|session)`)
 	publicName = regexp.MustCompile(`(?i)(public|_id$|_url$|_user(name)?$|_dir$|_path$|_file$|site_key)`)
 	// databaseURLName is a *_URL that carries a password even though "_url$"
 	// normally marks a public value.
@@ -68,7 +71,10 @@ var (
 	}
 
 	// jobPrefixRe matches act's "[Workflow/Job]" line prefix.
-	jobPrefixRe = regexp.MustCompile(`^\s*(?:\x1b\[[0-9;]*m)*\[`)
+	// act prefixes job output with "[Workflow/Job]"; a value line such as an
+	// INI "[default]" header has no slash and must not end masking.
+	jobPrefixRe = regexp.MustCompile(`^\s*\[[^\]/]+/[^\]]+\]`)
+	ansiRe      = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
 )
 
 // Redactor is stateful (PEM blocks and multi-line ::set-env:: values span
@@ -135,6 +141,19 @@ func (r *Redactor) add(v string) {
 
 // Line returns s with every secret it can recognise replaced by ***.
 func (r *Redactor) Line(s string) string {
+	// Colour codes can split a value; match on the plain text, and keep the
+	// original (colours intact) only when nothing needed masking.
+	if strings.Contains(s, "\x1b[") {
+		plain := ansiRe.ReplaceAllString(s, "")
+		if out := r.line(plain); out != plain {
+			return out
+		}
+		return s
+	}
+	return r.line(s)
+}
+
+func (r *Redactor) line(s string) string {
 	// ::add-mask::value registers the value and must not be stored itself.
 	if m := addMaskRe.FindStringSubmatchIndex(s); m != nil {
 		r.add(s[m[2]:m[3]])
@@ -205,10 +224,10 @@ func mixedCase(tok string) bool {
 }
 
 func isSecretName(name string) bool {
-	if databaseURLName.MatchString(name) {
+	if databaseURLName.MatchString(name) || strongName.MatchString(name) {
 		return true
 	}
-	return secretName.MatchString(name) && !publicName.MatchString(name)
+	return weakName.MatchString(name) && !publicName.MatchString(name)
 }
 
 // maskAfter replaces base64 runs that follow the PEM header on the same line

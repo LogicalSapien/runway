@@ -209,3 +209,43 @@ func TestURLPasswordWithQuotesAndSlashes(t *testing.T) {
 		t.Fatalf("password leaked: %q", got)
 	}
 }
+
+func TestINIValueAfterSecretSetEnv(t *testing.T) {
+	r := New(nil)
+	key := "wJalr" + strings.Repeat("Xy9", 10)
+	got := feed(r,
+		"[W/job]   ⚙  ::set-env:: AWS_CREDENTIALS=",
+		"[default]",
+		"aws_secret_access_key="+key,
+		"[W/job]   | next step output",
+	)
+	mustNotContain(t, got, key)
+	if got[3] != "[W/job]   | next step output" {
+		t.Fatalf("masking did not end at the job prefix: %q", got[3])
+	}
+}
+
+func TestSecretNameVariants(t *testing.T) {
+	for _, n := range []string{"DB_PASS", "SSH_KEY", "JWT_SIGNING_KEY", "CLIENT_SECRET_ID", "SESSION_KEY"} {
+		if !isSecretName(n) {
+			t.Errorf("%s should be treated as secret", n)
+		}
+	}
+	for _, n := range []string{"R2_ACCESS_KEY_ID", "SSH_PUBLIC_KEY", "BETTER_AUTH_URL", "VITE_TURNSTILE_SITE_KEY", "ansible_user"} {
+		if isSecretName(n) {
+			t.Errorf("%s should stay readable", n)
+		}
+	}
+}
+
+func TestANSISplitValueMasked(t *testing.T) {
+	r := New([]string{"FakeS3cretValue123"})
+	got := r.Line("[j/s] | FakeS3cret\x1b[0mValue123")
+	if strings.Contains(ansiRe.ReplaceAllString(got, ""), "FakeS3cretValue123") {
+		t.Fatalf("ANSI-split value leaked: %q", got)
+	}
+	plain := "[j/s] | \x1b[32mok\x1b[0m"
+	if out := r.Line(plain); out != plain {
+		t.Fatalf("colours on clean line changed: %q", out)
+	}
+}

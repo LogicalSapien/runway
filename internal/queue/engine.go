@@ -155,7 +155,7 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 	// 1. git
 	clonePath, sha, err := CloneOrPull(qi, e.reposDir)
 	if err != nil {
-		log.Printf("queue: git error repo=%s: %v", qi.RepoName, err)
+		log.Printf("queue: git error repo=%s: %s", qi.RepoName, redact.String(err.Error()))
 		e.recordFailedRun(qi, "git error: "+err.Error())
 		e.failQueueItem(qi.ID, "git error: "+err.Error())
 		return
@@ -322,7 +322,7 @@ func (e *Engine) failQueueItem(id int64, reason string) {
 		`UPDATE queue SET status='failed', finished_at=? WHERE id=?`,
 		now, id,
 	)
-	log.Printf("queue: item %d failed: %s", id, reason)
+	log.Printf("queue: item %d failed: %s", id, redact.String(reason))
 }
 
 // recordFailedRun inserts a failure run (plus a synthetic job/step/log line
