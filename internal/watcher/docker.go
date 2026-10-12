@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/client"
 
 	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/redact"
 )
 
 type DockerWatcher struct {
@@ -283,6 +284,7 @@ func (w *DockerWatcher) tailLogs(ctx context.Context, containerID string, runID 
 
 	lineNo := 0
 	outcome := ""
+	red := redact.New(nil)
 	scanner := bufio.NewScanner(rc)
 	scanner.Buffer(make([]byte, 512*1024), 512*1024)
 	for scanner.Scan() {
@@ -290,7 +292,7 @@ func (w *DockerWatcher) tailLogs(ctx context.Context, containerID string, runID 
 			break
 		}
 		lineNo++
-		line := strings.TrimRight(scanner.Text(), "\r\n")
+		line := red.Line(strings.TrimRight(scanner.Text(), "\r\n"))
 		if err := dbpkg.InsertLog(w.db, dbpkg.LogLine{
 			StepID: stepID,
 			Ts:     time.Now().Unix(),

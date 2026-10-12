@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/LogicalSapien/runway/internal/redact"
 )
 
 // Parser reads act stdout lines and writes jobs, steps, and log lines into the
@@ -28,6 +30,9 @@ type Parser struct {
 	db    *sql.DB
 	runID int64
 
+	// redactor scrubs secrets from every line before it is parsed or stored.
+	redactor *redact.Redactor
+
 	// per-job state (keyed by job name)
 	jobs map[string]int64 // job name → job DB id
 
@@ -42,14 +47,16 @@ type Parser struct {
 // NewParser constructs a parser for a given run.
 func NewParser(db *sql.DB, runID int64) *Parser {
 	return &Parser{
-		db:    db,
-		runID: runID,
-		jobs:  make(map[string]int64),
+		db:       db,
+		runID:    runID,
+		jobs:     make(map[string]int64),
+		redactor: redact.New(nil),
 	}
 }
 
 // Feed processes one line of act output.
 func (p *Parser) Feed(line string) {
+	line = p.redactor.Line(line)
 	jobName, rest, hasJob := parseJobPrefix(line)
 
 	if hasJob {

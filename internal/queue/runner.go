@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/LogicalSapien/runway/internal/redact"
+	"github.com/LogicalSapien/runway/internal/secrets"
 	"github.com/LogicalSapien/runway/internal/validate"
 )
 
@@ -89,6 +91,7 @@ func (r *Runner) Run(ctx context.Context) (exitCode int, err error) {
 		cmd.Process.Pid, r.runID, r.qi.RepoName, r.qi.WorkflowFile)
 
 	parser := NewParser(r.db, r.runID)
+	parser.redactor = redact.New(r.knownSecrets())
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 512*1024), 512*1024)
@@ -111,6 +114,23 @@ func (r *Runner) Run(ctx context.Context) (exitCode int, err error) {
 		return 1, waitErr
 	}
 	return 0, nil
+}
+
+// knownSecrets returns every value in this run's merged secrets file so the
+// parser can mask them even where act does not (Runway stores what act prints).
+func (r *Runner) knownSecrets() []string {
+	if r.secretsFile == "" {
+		return nil
+	}
+	b, err := os.ReadFile(r.secretsFile)
+	if err != nil {
+		return nil
+	}
+	vals := make([]string, 0)
+	for _, v := range secrets.ParseDotenv(string(b)) {
+		vals = append(vals, v)
+	}
+	return vals
 }
 
 // buildArgs constructs the act command-line arguments.

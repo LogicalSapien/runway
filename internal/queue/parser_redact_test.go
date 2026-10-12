@@ -1,0 +1,84 @@
+package queue
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/LogicalSapien/runway/internal/redact"
+)
+
+// TestParserStoresRedactedLines feeds act-style output through the parser and
+// checks that no secret reaches the logs table.
+func TestParserStoresRedactedLines(t *testing.T) {
+	d := openTestDB(t)
+	repoID := insertRepo(t, d)
+	res, err := d.Exec(`INSERT INTO runs(repo_id,repo,workflow,workflow_file,branch,status,trigger,created_at)
+		VALUES(?,?,?,?,?,?,?,?)`, repoID, "app", "Deploy", "deploy.yml", "main", "running", "api", time.Now().Unix())
+	if err != nil {
+		t.Fatalf("insert run: %v", err)
+	}
+	runID, _ := res.LastInsertId()
+
+	known := "known-repo-secret-value"
+	body := strings.Repeat("QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo", 2)
+	p := NewParser(d, runID)
+	p.redactor = redact.New([]string{known})
+	for _, l := range []string{
+		"[Deploy/deploy] ⭐ Run Main Fetch secrets",
+		"[Deploy/deploy]   ⚙  ::set-env:: COOKIE_SECRET=abcdefghijklmnop",
+		"[Deploy/deploy]   ⚙  ::set-env:: KAMAL_SSH_PRIVATE_KEY=-----BEGIN OPENSSH " + "PRIVATE KEY-----",
+		body,
+		"-----END OPENSSH " + "PRIVATE KEY-----",
+		"[Deploy/deploy]   | uses " + known,
+		"[Deploy/deploy]   | DATABASE_URL=postgresql://u:pa55word@db:5432/app",
+		"[Deploy/deploy]   ✅  Success - Main Fetch secrets [1s]",
+	} {
+		p.Feed(l)
+	}
+	p.Flush()
+
+	rows, err := d.Query(`SELECT text FROM logs WHERE run_id=?`, runID)
+	if err != nil {
+		t.Fatalf("query logs: %v", err)
+	}
+	defer rows.Close()
+	var all []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, s)
+	}
+	joined := strings.Join(all, "\n")
+	for _, secret := range []string{"abcdefghijklmnop", body, known, "pa55word"} {
+		if strings.Contains(joined, secret) {
+			t.Fatalf("secret %q stored in logs:\n%s", secret, joined)
+		}
+	}
+	if len(all) == 0 {
+		t.Fatal("expected log lines to be stored")
+	}
+}
+
+// TestKnownSecretsReadsRunSecretsFile checks the runner hands every value of
+// its merged secrets file to the parser's redactor.
+func TestKnownSecretsReadsRunSecretsFile(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "secrets.env")
+	if err := os.WriteFile(f, []byte("A=first-secret-value\nB=second-secret-value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{secretsFile: f}
+	got := strings.Join(r.knownSecrets(), ",")
+	for _, want := range []string{"first-secret-value", "second-secret-value"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("knownSecrets missing %q: %q", want, got)
+		}
+	}
+	if (&Runner{}).knownSecrets() != nil {
+		t.Fatal("no secrets file should give nil")
+	}
+}

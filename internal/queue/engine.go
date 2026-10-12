@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/redact"
 	"github.com/LogicalSapien/runway/internal/secrets"
 )
 
@@ -350,7 +351,7 @@ func (e *Engine) recordFailedRun(qi QueueItem, reason string) {
 	}
 	stepID, _ := sr.LastInsertId()
 	e.exec(`INSERT INTO logs(step_id, run_id, ts, line_no, text) VALUES(?,?,?,?,?)`,
-		stepID, runID, now, 1, reason)
+		stepID, runID, now, 1, redact.String(reason))
 }
 
 // exec runs a fire-and-forget statement, logging instead of returning errors —
