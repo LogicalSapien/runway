@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbpkg "github.com/LogicalSapien/runway/internal/db"
+	"github.com/LogicalSapien/runway/internal/redact"
 	"github.com/LogicalSapien/runway/internal/secrets"
 )
 
@@ -154,7 +155,7 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 	// 1. git
 	clonePath, sha, err := CloneOrPull(qi, e.reposDir)
 	if err != nil {
-		log.Printf("queue: git error repo=%s: %v", qi.RepoName, err)
+		log.Printf("queue: git error repo=%s: %s", qi.RepoName, redact.String(err.Error()))
 		e.recordFailedRun(qi, "git error: "+err.Error())
 		e.failQueueItem(qi.ID, "git error: "+err.Error())
 		return
@@ -187,11 +188,12 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 
 	// 3. run act — merge the operator's global secrets file with this repo's
 	// stored secrets/variables into per-run temp files (deleted afterwards).
-	secretsFile, varsFile, cleanupFiles := e.buildRunFiles(qi, clonePath)
+	secretsFile, varsFile, known, cleanupFiles := e.buildRunFiles(qi, clonePath)
 	defer cleanupFiles()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	registerRun(runID, cancelRun)
 	runner := NewRunner(e.db, qi, runID, clonePath, sha, secretsFile, varsFile)
+	runner.known = known
 	exitCode, runErr := runner.Run(runCtx)
 	cancelled := runCtx.Err() != nil && ctx.Err() == nil
 	unregisterRun(runID)
@@ -228,9 +230,10 @@ var envRefRe = regexp.MustCompile(`(?m)^\s*(?:environment|name):\s*['"]?([A-Za-z
 // buildRunFiles merges the operator's global secrets file with this repo's
 // stored secrets and variables into per-run 0600 temp files. Environment-scoped
 // values apply when the workflow file references that environment, overriding
-// repo-level values of the same name. Returns ("", "", noop) on full failure —
-// the run proceeds with whatever could be built.
-func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, varsFile string, cleanup func()) {
+// repo-level values of the same name. Returns ("", "", nil, noop) on full
+// failure — the run proceeds with whatever could be built. known holds the raw
+// secret values (before dotenv encoding) for log redaction.
+func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, varsFile string, known []string, cleanup func()) {
 	cleanup = func() {}
 
 	// Environments referenced by this workflow ∩ environments defined for the repo.
@@ -270,6 +273,10 @@ func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, var
 		}
 	}
 
+	for _, v := range merged {
+		known = append(known, v)
+	}
+
 	var paths []string
 	if len(merged) > 0 {
 		p, err := secrets.WriteDotenvFile("runway-secrets-*", merged)
@@ -301,7 +308,7 @@ func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, var
 			_ = os.Remove(p)
 		}
 	}
-	return secretsFile, varsFile, cleanup
+	return secretsFile, varsFile, known, cleanup
 }
 
 // failQueueItem marks a queue item as failed (no run reached act, or the run
@@ -315,7 +322,7 @@ func (e *Engine) failQueueItem(id int64, reason string) {
 		`UPDATE queue SET status='failed', finished_at=? WHERE id=?`,
 		now, id,
 	)
-	log.Printf("queue: item %d failed: %s", id, reason)
+	log.Printf("queue: item %d failed: %s", id, redact.String(reason))
 }
 
 // recordFailedRun inserts a failure run (plus a synthetic job/step/log line
@@ -350,7 +357,7 @@ func (e *Engine) recordFailedRun(qi QueueItem, reason string) {
 	}
 	stepID, _ := sr.LastInsertId()
 	e.exec(`INSERT INTO logs(step_id, run_id, ts, line_no, text) VALUES(?,?,?,?,?)`,
-		stepID, runID, now, 1, reason)
+		stepID, runID, now, 1, redact.String(reason))
 }
 
 // exec runs a fire-and-forget statement, logging instead of returning errors —

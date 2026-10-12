@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/LogicalSapien/runway/internal/redact"
 	"github.com/LogicalSapien/runway/internal/validate"
 )
 
@@ -26,6 +27,10 @@ type Runner struct {
 	sha         string
 	secretsFile string // merged per-run secrets file (act --secret-file)
 	varsFile    string // merged per-run variables file (act --var-file)
+	// known is every raw secret value injected into this run (repo, env and
+	// global secrets), taken from the merged map before dotenv encoding so the
+	// redactor sees exactly what act injects.
+	known []string
 }
 
 // NewRunner constructs a Runner.
@@ -89,6 +94,7 @@ func (r *Runner) Run(ctx context.Context) (exitCode int, err error) {
 		cmd.Process.Pid, r.runID, r.qi.RepoName, r.qi.WorkflowFile)
 
 	parser := NewParser(r.db, r.runID)
+	parser.redactor = redact.New(r.known)
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 512*1024), 512*1024)

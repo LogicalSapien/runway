@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+
+	"github.com/LogicalSapien/runway/internal/redact"
 )
 
 // LogLine is a single line of output captured from a step.
@@ -39,11 +41,15 @@ func GetLogs(db *sql.DB, stepID int64, afterLineNo int) ([]LogLine, error) {
 	}
 	defer rows.Close()
 	var out []LogLine
+	// Redact on read too, so lines stored before write-time redaction existed
+	// are never served with a secret in them.
+	red := redact.New(nil)
 	for rows.Next() {
 		var l LogLine
 		if err := rows.Scan(&l.ID, &l.StepID, &l.RunID, &l.Ts, &l.LineNo, &l.Text); err != nil {
 			return nil, err
 		}
+		l.Text = red.Line(l.Text)
 		out = append(out, l)
 	}
 	return out, rows.Err()
@@ -65,11 +71,15 @@ func GetRunLogs(db *sql.DB, runID int64) ([]LogLine, error) {
 	}
 	defer rows.Close()
 	var out []LogLine
+	// Redact on read too, so lines stored before write-time redaction existed
+	// are never served with a secret in them.
+	red := redact.New(nil)
 	for rows.Next() {
 		var l LogLine
 		if err := rows.Scan(&l.ID, &l.StepID, &l.RunID, &l.Ts, &l.LineNo, &l.Text); err != nil {
 			return nil, err
 		}
+		l.Text = red.Line(l.Text)
 		out = append(out, l)
 	}
 	return out, rows.Err()
