@@ -188,11 +188,12 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 
 	// 3. run act — merge the operator's global secrets file with this repo's
 	// stored secrets/variables into per-run temp files (deleted afterwards).
-	secretsFile, varsFile, cleanupFiles := e.buildRunFiles(qi, clonePath)
+	secretsFile, varsFile, known, cleanupFiles := e.buildRunFiles(qi, clonePath)
 	defer cleanupFiles()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	registerRun(runID, cancelRun)
 	runner := NewRunner(e.db, qi, runID, clonePath, sha, secretsFile, varsFile)
+	runner.known = known
 	exitCode, runErr := runner.Run(runCtx)
 	cancelled := runCtx.Err() != nil && ctx.Err() == nil
 	unregisterRun(runID)
@@ -229,9 +230,10 @@ var envRefRe = regexp.MustCompile(`(?m)^\s*(?:environment|name):\s*['"]?([A-Za-z
 // buildRunFiles merges the operator's global secrets file with this repo's
 // stored secrets and variables into per-run 0600 temp files. Environment-scoped
 // values apply when the workflow file references that environment, overriding
-// repo-level values of the same name. Returns ("", "", noop) on full failure —
-// the run proceeds with whatever could be built.
-func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, varsFile string, cleanup func()) {
+// repo-level values of the same name. Returns ("", "", nil, noop) on full
+// failure — the run proceeds with whatever could be built. known holds the raw
+// secret values (before dotenv encoding) for log redaction.
+func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, varsFile string, known []string, cleanup func()) {
 	cleanup = func() {}
 
 	// Environments referenced by this workflow ∩ environments defined for the repo.
@@ -271,6 +273,10 @@ func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, var
 		}
 	}
 
+	for _, v := range merged {
+		known = append(known, v)
+	}
+
 	var paths []string
 	if len(merged) > 0 {
 		p, err := secrets.WriteDotenvFile("runway-secrets-*", merged)
@@ -302,7 +308,7 @@ func (e *Engine) buildRunFiles(qi QueueItem, clonePath string) (secretsFile, var
 			_ = os.Remove(p)
 		}
 	}
-	return secretsFile, varsFile, cleanup
+	return secretsFile, varsFile, known, cleanup
 }
 
 // failQueueItem marks a queue item as failed (no run reached act, or the run

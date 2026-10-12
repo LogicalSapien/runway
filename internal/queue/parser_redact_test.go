@@ -1,13 +1,13 @@
 package queue
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	dbpkg "github.com/LogicalSapien/runway/internal/db"
 	"github.com/LogicalSapien/runway/internal/redact"
+	"github.com/LogicalSapien/runway/internal/secrets"
 )
 
 // TestParserStoresRedactedLines feeds act-style output through the parser and
@@ -64,21 +64,31 @@ func TestParserStoresRedactedLines(t *testing.T) {
 	}
 }
 
-// TestKnownSecretsReadsRunSecretsFile checks the runner hands every value of
-// its merged secrets file to the parser's redactor.
-func TestKnownSecretsReadsRunSecretsFile(t *testing.T) {
-	f := filepath.Join(t.TempDir(), "secrets.env")
-	if err := os.WriteFile(f, []byte("A=first-secret-value\nB=second-secret-value\n"), 0o600); err != nil {
+// TestBuildRunFilesReturnsRawSecretValues checks the redactor gets each secret
+// exactly as stored (quotes, backslashes, newlines intact), not a re-parse of
+// the dotenv-encoded secrets file, which could differ from what act injects.
+func TestBuildRunFilesReturnsRawSecretValues(t *testing.T) {
+	d := openTestDB(t)
+	repoID := insertRepo(t, d)
+	cipher, err := secrets.LoadKey("", t.TempDir())
+	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Runner{secretsFile: f}
-	got := strings.Join(r.knownSecrets(), ",")
-	for _, want := range []string{"first-secret-value", "second-secret-value"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("knownSecrets missing %q: %q", want, got)
-		}
+	raw := "line-one \"quoted\" \\back\nline-two-value"
+	enc, err := cipher.Encrypt(raw)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if (&Runner{}).knownSecrets() != nil {
-		t.Fatal("no secrets file should give nil")
+	if err := dbpkg.UpsertSecret(d, repoID, "", "MULTI", enc); err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine(d, t.TempDir(), cipher)
+	f, _, known, cleanup := e.buildRunFiles(QueueItem{RepoID: repoID, WorkflowFile: "ci.yml"}, t.TempDir())
+	defer cleanup()
+	if f == "" {
+		t.Fatal("expected a secrets file")
+	}
+	if len(known) != 1 || known[0] != raw {
+		t.Fatalf("known = %q, want [%q]", known, raw)
 	}
 }

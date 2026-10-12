@@ -1,6 +1,8 @@
 package redact
 
 import (
+	"encoding/base64"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -151,5 +153,59 @@ func TestOrdinaryLinesUntouched(t *testing.T) {
 		if got := r.Line(l); got != l {
 			t.Errorf("changed %q -> %q", l, got)
 		}
+	}
+}
+
+func TestKnownValueEncodingsMasked(t *testing.T) {
+	secret := "pa$$ w0rd/with+chars"
+	multi := "first-line-secret\nsecond-line-secret"
+	r := New([]string{secret, multi})
+	cases := []string{
+		base64.StdEncoding.EncodeToString([]byte(secret)),
+		base64.RawURLEncoding.EncodeToString([]byte(secret)),
+		url.QueryEscape(secret),
+		url.PathEscape(secret),
+		`{"v":"first-line-secret\nsecond-line-secret"}`,
+	}
+	for _, c := range cases {
+		got := r.Line("[j/s] | " + c)
+		for _, leak := range []string{secret, c, "first-line-secret", "second-line-secret"} {
+			if strings.Contains(got, leak) {
+				t.Errorf("encoding leaked: %q -> %q", c, got)
+			}
+		}
+	}
+}
+
+func TestKeyBodyAfterMaskedHeader(t *testing.T) {
+	// GitHub/act masked the header line but printed the body lines bare.
+	r := New(nil)
+	got := feed(r,
+		"[P/prune]   KAMAL_SSH_PRIVATE_KEY: ***",
+		keyBody1,
+		"[P/prune]   | "+keyBody2,
+	)
+	mustNotContain(t, got, keyBody1, keyBody2)
+	// hex digests and words must survive
+	digest := "sha256:" + strings.Repeat("0123456789abcdef", 4)
+	if out := r.Line("[P/prune]   | " + digest); !strings.Contains(out, digest) {
+		t.Fatalf("hex digest masked: %q", out)
+	}
+}
+
+func TestSetEnvValueRegisteredForLaterLines(t *testing.T) {
+	r := New(nil)
+	got := feed(r,
+		"[D/d]   ⚙  ::set-env:: FACE_SERVICE_TOKEN=tok-"+strings.Repeat("z9", 8),
+		"[D/d]   | calling with tok-"+strings.Repeat("z9", 8),
+	)
+	mustNotContain(t, got, "tok-"+strings.Repeat("z9", 8))
+}
+
+func TestURLPasswordWithQuotesAndSlashes(t *testing.T) {
+	pw := `p'a"s/s`
+	got := String("dsn=postgresql://u:" + pw + "@db:5432/x")
+	if strings.Contains(got, pw) {
+		t.Fatalf("password leaked: %q", got)
 	}
 }

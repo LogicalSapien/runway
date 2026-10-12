@@ -12,8 +12,11 @@
 package redact
 
 import (
+	"encoding/base64"
+	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -39,8 +42,17 @@ var (
 	pemEndRe   = regexp.MustCompile(`-----END [A-Z0-9 ]*PRIVATE KEY-----`)
 	base64Run  = regexp.MustCompile(`[A-Za-z0-9+/=]{16,}`)
 
-	// scheme://user:password@host — keep the user, drop the password.
-	urlPassRe = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://[^\s:/@'"]+:)([^\s@'"]+)@`)
+	// scheme://user:password@host — keep the user, drop the password. The
+	// password may hold quotes or slashes; it ends at the last '@' before
+	// whitespace.
+	urlPassRe = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://[^\s:/@'"]+:)([^\s]+)@`)
+
+	// keyBodyLine is a line that is nothing but one long mixed-case base64
+	// token: the body of a key whose PEM header was masked (or never printed),
+	// e.g. a multi-line secret shown in a step's env block. Hex digests and
+	// plain words never match (they lack one of upper/lower/digit, or are
+	// shorter).
+	keyBodyLine = regexp.MustCompile(`^(.*?[|:]\s*|\s*)([A-Za-z0-9+/]{40,}={0,2})\s*$`)
 
 	tokenRes = []*regexp.Regexp{
 		regexp.MustCompile(`\bdp\.(?:st|ct|sa|pt|scim|audit)\.[A-Za-z0-9_.-]{16,}`),
@@ -79,22 +91,44 @@ func New(known []string) *Redactor {
 	return r
 }
 
+// add registers a secret: each of its lines, and the common encodings a step
+// might print it in (base64, URL/query escaping, JSON/Go string escaping of
+// the whole value, so a multi-line value printed as one "a\nb" string is
+// caught too).
 func (r *Redactor) add(v string) {
-	for _, part := range strings.Split(strings.ReplaceAll(v, "\r", ""), "\n") {
-		part = strings.TrimSpace(part)
-		if len(part) < minLen || part == Mask {
+	v = strings.ReplaceAll(v, "\r", "")
+	trimmed := strings.TrimSpace(v)
+	if len(trimmed) < minLen || trimmed == Mask {
+		return
+	}
+	forms := strings.Split(v, "\n")
+	for _, w := range []string{trimmed, strings.TrimSpace(forms[0])} {
+		if len(w) < minLen {
 			continue
 		}
-		dup := false
-		for _, have := range r.values {
-			if have == part {
-				dup = true
-				break
-			}
+		forms = append(forms,
+			base64.StdEncoding.EncodeToString([]byte(w)),
+			base64.RawStdEncoding.EncodeToString([]byte(w)),
+			base64.URLEncoding.EncodeToString([]byte(w)),
+			base64.RawURLEncoding.EncodeToString([]byte(w)),
+			url.QueryEscape(w),
+			url.PathEscape(w),
+		)
+	}
+	if q := strconv.Quote(trimmed); len(q) > 2 {
+		forms = append(forms, q[1:len(q)-1])
+	}
+	seen := make(map[string]bool, len(r.values))
+	for _, have := range r.values {
+		seen[have] = true
+	}
+	for _, part := range forms {
+		part = strings.TrimSpace(part)
+		if len(part) < minLen || part == Mask || seen[part] {
+			continue
 		}
-		if !dup {
-			r.values = append(r.values, part)
-		}
+		seen[part] = true
+		r.values = append(r.values, part)
 	}
 	sort.SliceStable(r.values, func(i, j int) bool { return len(r.values[i]) > len(r.values[j]) })
 }
@@ -122,6 +156,8 @@ func (r *Redactor) Line(s string) string {
 	}
 
 	if m := setEnvRe.FindStringSubmatch(s); m != nil && isSecretName(m[2]) {
+		// Remember the value so later echoes of it are masked too.
+		r.add(m[3])
 		s = setEnvRe.ReplaceAllString(s, "${1}${2}="+Mask)
 		r.inSecretEnv = true
 	}
@@ -135,6 +171,10 @@ func (r *Redactor) Line(s string) string {
 			r.inPEM = false
 		}
 		s = base64Run.ReplaceAllString(s, Mask)
+	default:
+		if m := keyBodyLine.FindStringSubmatch(s); m != nil && mixedCase(m[2]) {
+			s = m[1] + Mask
+		}
 	}
 
 	s = urlPassRe.ReplaceAllString(s, "${1}"+Mask+"@")
@@ -146,6 +186,23 @@ func (r *Redactor) Line(s string) string {
 
 // String redacts a standalone message with a fresh Redactor (no known values).
 func String(s string) string { return New(nil).Line(s) }
+
+// mixedCase reports whether tok has an upper-case letter, a lower-case letter
+// and a digit — true of random base64, false of hex digests and plain words.
+func mixedCase(tok string) bool {
+	var up, low, dig bool
+	for _, c := range tok {
+		switch {
+		case c >= 'A' && c <= 'Z':
+			up = true
+		case c >= 'a' && c <= 'z':
+			low = true
+		case c >= '0' && c <= '9':
+			dig = true
+		}
+	}
+	return up && low && dig
+}
 
 func isSecretName(name string) bool {
 	if databaseURLName.MatchString(name) {
