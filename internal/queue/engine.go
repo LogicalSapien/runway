@@ -224,8 +224,9 @@ func (e *Engine) process(ctx context.Context, qi QueueItem) {
 
 // envRefRe matches "environment: name" and the block form's "name: x" line in
 // workflow YAML — a heuristic to decide which environment scopes apply to a run
-// (act itself does not resolve GitHub environments).
-var envRefRe = regexp.MustCompile(`(?m)^\s*(?:environment|name):\s*['"]?([A-Za-z0-9._-]+)['"]?\s*$`)
+// (act itself does not resolve GitHub environments). A trailing YAML comment
+// ("environment: prd # note") is allowed; it needs whitespace before '#', as in YAML.
+var envRefRe = regexp.MustCompile(`(?m)^\s*(?:environment|name):\s*['"]?([A-Za-z0-9._-]+)['"]?(?:\s+#.*)?\s*$`)
 
 // buildRunFiles merges the operator's global secrets file with this repo's
 // stored secrets and variables into per-run 0600 temp files. Environment-scoped
